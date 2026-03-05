@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Plan {
+  FREE
+  PRO
+  BUSINESS
+}
+
+enum CreativeType {
+  IMAGE
+  VIDEO
+}
+
+enum ParseStatus {
+  SUCCESS
+  ERROR
+}
+
+enum AiGenerationMode {
+  SIMILAR_STYLE
+  DIFFERENT_ANGLE
+  GEO_ADAPT
+  TEXT_VARIATION
+}
+
+model User {
+  id                 String    @id @default(uuid()) @db.Uuid
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  name               String?
+  role               Role      @default(USER)
+  plan               Plan      @default(FREE)
+  downloadsThisMonth Int       @default(0) @map("downloads_this_month")
+  downloadsResetAt   DateTime? @map("downloads_reset_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  projects       Project[]
+  sessions       Session[]
+  aiGenerations  AiGeneration[]
+  aiUsage        AiUsage[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Vertical {
+  id   String @id @default(uuid()) @db.Uuid
+  name String
+  slug String @unique
+
+  ads            Ad[]
+  searchKeywords SearchKeyword[]
+
+  @@map("verticals")
+}
+
+model Ad {
+  id             String    @id @default(uuid()) @db.Uuid
+  fbAdId         String    @unique @map("fb_ad_id")
+  advertiserName String?   @map("advertiser_name")
+  advertiserId   String?   @map("advertiser_id")
+  adText         String?   @map("ad_text")
+  landingUrl     String?   @map("landing_url")
+  countries      String[]  @default([])
+  verticalId     String?   @map("vertical_id") @db.Uuid
+  startedAt      DateTime? @map("started_at")
+  lastSeenAt     DateTime? @map("last_seen_at")
+  daysActive     Int       @default(0) @map("days_active")
+  isActive       Boolean   @default(true) @map("is_active")
+  textHash       String?   @map("text_hash")
+  savesCount     Int       @default(0) @map("saves_count")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  vertical     Vertical?     @relation(fields: [verticalId], references: [id])
+  creatives    AdCreative[]
+  projectItems ProjectItem[]
+
+  @@index([verticalId, daysActive(sort: Desc)])
+  @@index([isActive, createdAt(sort: Desc)])
+  @@index([daysActive(sort: Desc)])
+  @@map("ads")
+}
+
+model AdCreative {
+  id             String       @id @default(uuid()) @db.Uuid
+  adId           String       @map("ad_id") @db.Uuid
+  type           CreativeType
+  originalUrl    String?      @map("original_url")
+  b2Key          String?      @map("b2_key")
+  thumbnailB2Key String?      @map("thumbnail_b2_key")
+  phash          String?
+  fileSizeBytes  Int?         @map("file_size_bytes")
+  isDownloaded   Boolean      @default(false) @map("is_downloaded")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  ad             Ad             @relation(fields: [adId], references: [id], onDelete: Cascade)
+  aiGenerations  AiGeneration[]
+
+  @@map("ad_creatives")
+}
+
+model Project {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ProjectItem[]
+
+  @@map("projects")
+}
+
+model ProjectItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  adId      String   @map("ad_id") @db.Uuid
+  note      String?
+  tags      String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ad      Ad      @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, adId])
+  @@map("project_items")
+}
+
+model SearchKeyword {
+  id           String    @id @default(uuid()) @db.Uuid
+  keyword      String
+  verticalId   String?   @map("vertical_id") @db.Uuid
+  isActive     Boolean   @default(true) @map("is_active")
+  lastParsedAt DateTime? @map("last_parsed_at")
+
+  vertical Vertical? @relation(fields: [verticalId], references: [id])
+  logs     ParseLog[]
+
+  @@map("search_keywords")
+}
+
+model ParseLog {
+  id           String      @id @default(uuid()) @db.Uuid
+  keywordId    String      @map("keyword_id") @db.Uuid
+  status       ParseStatus
+  adsFound     Int         @default(0) @map("ads_found")
+  adsNew       Int         @default(0) @map("ads_new")
+  errorMessage String?     @map("error_message")
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  keyword SearchKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@map("parse_logs")
+}
+
+model AiGeneration {
+  id                String           @id @default(uuid()) @db.Uuid
+  userId            String           @map("user_id") @db.Uuid
+  sourceCreativeId  String           @map("source_creative_id") @db.Uuid
+  mode              AiGenerationMode
+  promptUsed        String?          @map("prompt_used")
+  b2Key             String?          @map("b2_key")
+  costUsd           Decimal?         @map("cost_usd") @db.Decimal(10, 4)
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceCreative AdCreative  @relation(fields: [sourceCreativeId], references: [id])
+
+  @@map("ai_generations")
+}
+
+model AiUsage {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  month            DateTime @db.Date
+  generationsUsed  Int      @default(0) @map("generations_used")
+  generationsLimit Int      @map("generations_limit")
+  totalCostUsd     Decimal  @default(0) @map("total_cost_usd") @db.Decimal(10, 4)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@map("ai_usage")
+}
