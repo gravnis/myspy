@@ -24,7 +24,8 @@ jobs:
       - name: Install Chromium dependencies
         run: npx puppeteer browsers install chrome
 
-      - name: Run scraper
+      - name: Run scraper (random batch of 25 combos)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_COMBOS: '25'
         run: npx tsx scripts/scrape.ts

@@ -8,14 +8,50 @@ import 'dotenv/config';
 import puppeteer from 'puppeteer';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
-const KEYWORDS = [
-  // English
-  'gambling', 'casino', 'betting', 'nutra', 'weight loss', 'crypto trading',
-  'dating app', 'ecommerce store', 'forex', 'binary options', 'sweepstakes',
-  // Russian
-  'казино', 'ставки', 'похудение', 'крипто', 'знакомства', 'заработок', 'кредит', 'займ',
-  'игровые автоматы', 'букмекер', 'трейдинг', 'инвестиции',
-];
+// Keywords grouped by vertical for better coverage
+const KEYWORD_GROUPS: Record<string, string[]> = {
+  gambling: [
+    'gambling', 'casino', 'online casino', 'slots', 'slot machine', 'poker', 'roulette', 'blackjack',
+    'казино', 'игровые автоматы', 'слоты', 'покер', 'рулетка', 'азартные игры',
+  ],
+  betting: [
+    'betting', 'sports betting', 'bet', 'sportsbook', 'odds', 'live betting', 'football bet',
+    'ставки', 'букмекер', 'ставки на спорт', 'прогнозы на спорт', 'тотализатор',
+  ],
+  nutra: [
+    'nutra', 'weight loss', 'diet pills', 'fat burner', 'keto', 'detox', 'anti aging', 'supplement',
+    'skin care', 'hair growth', 'joint pain', 'blood sugar',
+    'похудение', 'диета', 'жиросжигатель', 'кето', 'детокс', 'омоложение', 'добавки',
+  ],
+  crypto: [
+    'crypto trading', 'bitcoin', 'forex', 'binary options', 'trading platform', 'investment',
+    'passive income', 'earn money online', 'financial freedom',
+    'крипто', 'биткоин', 'трейдинг', 'инвестиции', 'заработок', 'пассивный доход', 'форекс',
+  ],
+  dating: [
+    'dating app', 'dating site', 'meet singles', 'find love', 'hookup', 'relationship',
+    'знакомства', 'сайт знакомств', 'найти пару',
+  ],
+  finance: [
+    'loan', 'credit card', 'personal loan', 'fast cash', 'payday loan', 'insurance',
+    'кредит', 'займ', 'быстрый кредит', 'микрозайм', 'страховка',
+  ],
+  ecommerce: [
+    'ecommerce store', 'dropshipping', 'online shop', 'free shipping', 'sale', 'discount',
+    'buy now', 'limited offer', 'интернет магазин', 'скидки', 'распродажа',
+  ],
+  sweepstakes: [
+    'sweepstakes', 'giveaway', 'win prize', 'free iphone', 'spin wheel', 'lucky winner',
+    'розыгрыш', 'конкурс', 'выиграй', 'приз', 'бесплатный айфон',
+  ],
+  gaming: [
+    'mobile game', 'play now', 'free game', 'strategy game', 'RPG', 'online game',
+    'мобильная игра', 'играть бесплатно', 'стратегия',
+  ],
+};
+
+const ALL_KEYWORDS = Object.values(KEYWORD_GROUPS).flat();
+
 const COUNTRIES = [
   'US', 'GB', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'AT', 'CH',  // Tier 1
   'UA', 'RU', 'PL', 'CZ', 'RO', 'HU', 'BG',                     // Eastern Europe
@@ -23,6 +59,19 @@ const COUNTRIES = [
   'IN', 'PH', 'TH', 'VN', 'ID',                                   // Asia
   'AU', 'CA', 'NZ', 'ZA', 'NG', 'KE',                            // Other
 ];
+
+// Shuffle array (Fisher-Yates)
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Build work items — each run takes a random batch
+const MAX_COMBOS = parseInt(process.env.MAX_COMBOS || '0', 10);  // 0 = all
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -304,26 +353,44 @@ async function main() {
   console.log('MySpy Local Scraper');
   console.log('===================');
   console.log(`DB: ${DATABASE_URL.replace(/:[^@]+@/, ':***@')}`);
-  console.log(`Keywords: ${KEYWORDS.length}, Countries: ${COUNTRIES.length}`);
+
+  // Build all keyword-country combos
+  let combos: { keyword: string; country: string }[] = [];
+  for (const keyword of ALL_KEYWORDS) {
+    for (const country of COUNTRIES) {
+      combos.push({ keyword, country });
+    }
+  }
+
+  // Shuffle for randomness
+  combos = shuffle(combos);
+
+  // Limit if MAX_COMBOS is set (for GitHub Actions 30-min runs)
+  if (MAX_COMBOS > 0) {
+    combos = combos.slice(0, MAX_COMBOS);
+  }
+
+  console.log(`Total keywords: ${ALL_KEYWORDS.length}, Countries: ${COUNTRIES.length}`);
+  console.log(`Combos this run: ${combos.length} / ${ALL_KEYWORDS.length * COUNTRIES.length}`);
   console.log('');
 
   let totalSaved = 0, totalUpdated = 0;
 
-  for (const keyword of KEYWORDS) {
-    for (const country of COUNTRIES) {
-      try {
-        const ads = await scrapeKeyword(keyword, country);
-        if (ads.length > 0) {
-          const { saved, updated } = await saveToDb(ads);
-          totalSaved += saved;
-          totalUpdated += updated;
-          console.log(`    Saved: ${saved} new, ${updated} updated`);
-        }
-        // Delay between requests
-        await new Promise(r => setTimeout(r, 3000));
-      } catch (err: any) {
-        console.error(`  Error scraping "${keyword}" in ${country}:`, err.message);
+  for (let i = 0; i < combos.length; i++) {
+    const { keyword, country } = combos[i];
+    console.log(`[${i + 1}/${combos.length}]`);
+    try {
+      const ads = await scrapeKeyword(keyword, country);
+      if (ads.length > 0) {
+        const { saved, updated } = await saveToDb(ads);
+        totalSaved += saved;
+        totalUpdated += updated;
+        console.log(`    Saved: ${saved} new, ${updated} updated`);
       }
+      // Delay between requests
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (err: any) {
+      console.error(`  Error scraping "${keyword}" in ${country}:`, err.message);
     }
   }
 
