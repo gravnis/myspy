@@ -6,20 +6,32 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import Card from "@/components/ui/Card";
 
+interface AdCreative {
+  id: string;
+  type: string;
+  originalUrl: string | null;
+  b2Key: string | null;
+  thumbnailB2Key: string | null;
+}
+
 interface AdDetail {
   id: string;
-  advertiserName: string;
-  advertiserId: string;
-  adText: string;
-  thumbnailUrl: string | null;
-  mediaUrl: string | null;
+  fbAdId: string;
+  advertiserName: string | null;
+  advertiserId: string | null;
+  adText: string | null;
+  linkTitle: string | null;
+  linkDescription: string | null;
   landingUrl: string | null;
   countries: string[];
-  vertical: string;
+  platforms: string[];
+  vertical: { name: string; slug: string } | null;
   daysActive: number;
-  startedAt: string;
-  lastSeenAt: string;
+  isActive: boolean;
+  startedAt: string | null;
+  lastSeenAt: string | null;
   savesCount: number;
+  creatives: AdCreative[];
 }
 
 export default function AdDetailPage() {
@@ -89,12 +101,17 @@ export default function AdDetailPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Creative */}
             <div className="bg-card-bg border border-card-border rounded-xl overflow-hidden">
-              {ad.thumbnailUrl || ad.mediaUrl ? (
-                <img
-                  src={ad.mediaUrl || ad.thumbnailUrl || ""}
-                  alt="Ad creative"
-                  className="w-full object-contain max-h-[600px] bg-gray-50"
-                />
+              {ad.creatives && ad.creatives.length > 0 ? (
+                <div className="space-y-2">
+                  {ad.creatives.map((c) => (
+                    <img
+                      key={c.id}
+                      src={c.b2Key || c.originalUrl || ""}
+                      alt="Ad creative"
+                      className="w-full object-contain max-h-[600px] bg-gray-50"
+                    />
+                  ))}
+                </div>
               ) : (
                 <div className="aspect-video bg-gray-100 flex items-center justify-center">
                   <span className="text-muted text-lg">No creative available</span>
@@ -185,15 +202,42 @@ export default function AdDetailPage() {
                 <div>
                   <p className="text-xs text-muted mb-1.5">Vertical</p>
                   <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
-                    {ad.vertical || "Unknown"}
+                    {ad.vertical?.name || "Unknown"}
                   </span>
+                </div>
+
+                {/* Platforms */}
+                {ad.platforms && ad.platforms.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted mb-1.5">Platforms</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ad.platforms.map((p) => (
+                        <span key={p} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* FB Ad Library Link */}
+                <div>
+                  <p className="text-xs text-muted mb-1.5">FB Ad Library</p>
+                  <a
+                    href={`https://www.facebook.com/ads/library/?id=${ad.fbAdId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline text-xs"
+                  >
+                    ID: {ad.fbAdId}
+                  </a>
                 </div>
 
                 {/* Active Period */}
                 <div>
                   <p className="text-xs text-muted mb-1.5">Active Period</p>
                   <p className="text-sm text-foreground">
-                    {formatDate(ad.startedAt)} — {formatDate(ad.lastSeenAt)}
+                    {ad.startedAt ? formatDate(ad.startedAt) : "Unknown"} — {ad.lastSeenAt ? formatDate(ad.lastSeenAt) : "Now"}
                   </p>
                   <p className="text-xs text-muted mt-0.5">
                     {ad.daysActive} days active

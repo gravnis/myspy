@@ -242,11 +242,20 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
 
           const isActive = text.toLowerCase().includes('active') && !text.toLowerCase().includes('inactive');
 
-          // Images
+          // Images — only large creative images (not avatars/icons)
           const imageUrls: string[] = [];
           card.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src') || '';
-            if (src && !src.startsWith('data:') && (img.width > 40 || img.naturalWidth > 40)) imageUrls.push(src);
+            if (!src || src.startsWith('data:')) return;
+            // Skip small images (avatars, icons) — real ad creatives are 100px+
+            const w = img.width || img.naturalWidth || 0;
+            const h = img.height || img.naturalHeight || 0;
+            if (w < 100 && h < 100) return;
+            // Skip profile pictures (usually in circular containers or very small)
+            const parent = img.parentElement;
+            const parentStyle = parent ? getComputedStyle(parent) : null;
+            if (parentStyle?.borderRadius === '50%') return;
+            imageUrls.push(src);
           });
 
           // Ad text
