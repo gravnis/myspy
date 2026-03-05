@@ -17,7 +17,13 @@ export async function GET(request: NextRequest) {
     const where: Prisma.AdWhereInput = {};
 
     if (q) {
-      where.adText = { contains: q, mode: 'insensitive' };
+      where.OR = [
+        { adText: { contains: q, mode: 'insensitive' } },
+        { advertiserName: { contains: q, mode: 'insensitive' } },
+        { linkTitle: { contains: q, mode: 'insensitive' } },
+        { linkDescription: { contains: q, mode: 'insensitive' } },
+        { landingUrl: { contains: q, mode: 'insensitive' } },
+      ];
     }
 
     if (country) {

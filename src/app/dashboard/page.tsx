@@ -5,17 +5,27 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import Card from "@/components/ui/Card";
 
+interface AdCreative {
+  id: string;
+  type: string;
+  originalUrl: string | null;
+  b2Key: string | null;
+  thumbnailB2Key: string | null;
+}
+
 interface Ad {
   id: string;
-  advertiserName: string;
-  adText: string;
-  thumbnailUrl: string | null;
+  advertiserName: string | null;
+  adText: string | null;
   countries: string[];
-  vertical: string;
+  vertical: { name: string; slug: string } | null;
   daysActive: number;
-  startedAt: string;
-  lastSeenAt: string;
+  isActive: boolean;
+  startedAt: string | null;
+  lastSeenAt: string | null;
   savesCount: number;
+  landingUrl: string | null;
+  creatives: AdCreative[];
 }
 
 interface AdsResponse {
@@ -232,7 +242,11 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <p className="text-muted text-lg">No ads found</p>
-            <p className="text-muted text-sm mt-1">Try adjusting your search or filters</p>
+            <p className="text-muted text-sm mt-1">
+              {query || country || vertical || minDays
+                ? 'Try adjusting your search or filters'
+                : 'No ads in the database yet. Run a parse from the Admin panel to collect ads.'}
+            </p>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -240,10 +254,10 @@ export default function DashboardPage() {
               <Link key={ad.id} href={`/dashboard/ads/${ad.id}`} className="block group">
                 <div className="bg-card-bg border border-card-border rounded-lg overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-200">
                   {/* Thumbnail */}
-                  {ad.thumbnailUrl ? (
+                  {ad.creatives?.[0]?.originalUrl ? (
                     <div className="aspect-video bg-gray-100 overflow-hidden">
                       <img
-                        src={ad.thumbnailUrl}
+                        src={ad.creatives[0].originalUrl}
                         alt="Ad creative"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
@@ -257,12 +271,12 @@ export default function DashboardPage() {
                   <div className="p-4 space-y-3">
                     {/* Advertiser */}
                     <p className="text-sm font-semibold text-foreground truncate">
-                      {ad.advertiserName}
+                      {ad.advertiserName || 'Unknown advertiser'}
                     </p>
 
                     {/* Ad text */}
                     <p className="text-sm text-muted line-clamp-2 leading-relaxed">
-                      {ad.adText}
+                      {ad.adText || 'No text'}
                     </p>
 
                     {/* Badges */}
@@ -282,7 +296,7 @@ export default function DashboardPage() {
                       )}
                       {ad.vertical && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
-                          {ad.vertical}
+                          {ad.vertical.name}
                         </span>
                       )}
                     </div>
