@@ -1,6 +1,4 @@
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const chromium = require('chromium') as { path: string };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -435,7 +433,8 @@ export async function scrapeAdLibrary(params: {
   let browser: Browser | null = null;
 
   try {
-    const executablePath = chromium.path;
+    // Use system chromium (installed via Dockerfile) or env var
+    const executablePath = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser' ;
 
     browser = await puppeteer.launch({
       executablePath,
@@ -445,8 +444,9 @@ export async function scrapeAdLibrary(params: {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
         '--disable-features=IsolateOrigins,site-per-process',
-        '--window-size=1920,1080',
       ],
     });
 
