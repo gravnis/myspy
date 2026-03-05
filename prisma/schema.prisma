@@ -84,8 +84,11 @@ model Ad {
   advertiserName String?   @map("advertiser_name")
   advertiserId   String?   @map("advertiser_id")
   adText         String?   @map("ad_text")
+  linkTitle      String?   @map("link_title")
+  linkDescription String?  @map("link_description")
   landingUrl     String?   @map("landing_url")
   countries      String[]  @default([])
+  platforms      String[]  @default([])
   verticalId     String?   @map("vertical_id") @db.Uuid
   startedAt      DateTime? @map("started_at")
   lastSeenAt     DateTime? @map("last_seen_at")

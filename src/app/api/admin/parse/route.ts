@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { searchMetaAds, mapMetaAdToDb } from '@/lib/meta-api';
+import { scrapeAdLibrary, mapScrapedAdToDb } from '@/lib/meta-api';
 import { detectVertical, hashText } from '@/lib/utils';
 
 async function getUser(request: NextRequest) {
   const auth = request.headers.get('Authorization');
   if (!auth?.startsWith('Bearer ')) return null;
   return verifyToken(auth.slice(7));
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function GET(request: NextRequest) {
@@ -45,6 +49,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const body = await request.json().catch(() => ({}));
+    const country = body?.country || 'US';
+
     const activeKeywords = await prisma.searchKeyword.findMany({
       where: { isActive: true },
       include: { vertical: true },
@@ -58,63 +65,76 @@ export async function POST(request: NextRequest) {
     const verticals = await prisma.vertical.findMany();
     const verticalSlugMap = new Map(verticals.map((v) => [v.slug, v.id]));
 
-    const results: { keyword: string; adsFound: number; adsNew: number }[] = [];
+    const results: { keyword: string; adsFound: number; adsNew: number; errors: string[] }[] = [];
 
-    for (const kw of activeKeywords) {
+    for (let i = 0; i < activeKeywords.length; i++) {
+      const kw = activeKeywords[i];
       let adsFound = 0;
       let adsNew = 0;
+      const errors: string[] = [];
 
       try {
-        const response = await searchMetaAds({
-          searchTerms: kw.keyword,
-          limit: 25,
+        const scrapeResult = await scrapeAdLibrary({
+          keyword: kw.keyword,
+          country,
+          maxAds: 50,
         });
 
-        adsFound = response.data.length;
+        if (scrapeResult.errors.length > 0) {
+          errors.push(...scrapeResult.errors);
+        }
 
-        for (const metaAd of response.data) {
-          const mapped = mapMetaAdToDb(metaAd, ['US']);
+        adsFound = scrapeResult.ads.length;
 
-          // Compute daysActive
-          const daysActive = mapped.startedAt
-            ? Math.max(1, Math.floor((Date.now() - mapped.startedAt.getTime()) / (1000 * 60 * 60 * 24)))
-            : 0;
+        for (const ad of scrapeResult.ads) {
+          try {
+            const mapped = mapScrapedAdToDb(ad);
 
-          // Detect vertical
-          const detectedSlug = kw.verticalId
-            ? null
-            : detectVertical(mapped.adText || '');
+            // Compute daysActive
+            const daysActive = mapped.startedAt
+              ? Math.max(1, Math.floor((Date.now() - mapped.startedAt.getTime()) / (1000 * 60 * 60 * 24)))
+              : 0;
 
-          const verticalId = kw.verticalId || (detectedSlug ? verticalSlugMap.get(detectedSlug) : null) || null;
+            // Detect vertical
+            const detectedSlug = kw.verticalId
+              ? null
+              : detectVertical(mapped.adText || '');
 
-          // Compute text hash
-          const textHash = mapped.adText ? hashText(mapped.adText) : null;
+            const verticalId = kw.verticalId || (detectedSlug ? verticalSlugMap.get(detectedSlug) : null) || null;
 
-          const existing = await prisma.ad.findUnique({
-            where: { fbAdId: mapped.fbAdId },
-          });
+            // Compute text hash
+            const textHash = mapped.adText ? hashText(mapped.adText) : null;
 
-          if (existing) {
-            // Update existing ad
-            await prisma.ad.update({
+            const existing = await prisma.ad.findUnique({
               where: { fbAdId: mapped.fbAdId },
-              data: {
-                lastSeenAt: mapped.lastSeenAt,
-                isActive: mapped.isActive,
-                daysActive,
-              },
             });
-          } else {
-            // Create new ad
-            await prisma.ad.create({
-              data: {
-                ...mapped,
-                daysActive,
-                verticalId,
-                textHash,
-              },
-            });
-            adsNew++;
+
+            if (existing) {
+              // Update existing ad
+              await prisma.ad.update({
+                where: { fbAdId: mapped.fbAdId },
+                data: {
+                  lastSeenAt: mapped.lastSeenAt,
+                  isActive: mapped.isActive,
+                  daysActive,
+                },
+              });
+            } else {
+              // Create new ad
+              await prisma.ad.create({
+                data: {
+                  ...mapped,
+                  daysActive,
+                  verticalId,
+                  textHash,
+                },
+              });
+              adsNew++;
+            }
+          } catch (adErr) {
+            const msg = adErr instanceof Error ? adErr.message : 'Unknown error processing ad';
+            console.error(`Error processing ad from keyword "${kw.keyword}":`, msg);
+            errors.push(msg);
           }
         }
 
@@ -128,13 +148,15 @@ export async function POST(request: NextRequest) {
         await prisma.parseLog.create({
           data: {
             keywordId: kw.id,
-            status: 'SUCCESS',
+            status: errors.length > 0 && adsFound === 0 ? 'ERROR' : 'SUCCESS',
             adsFound,
             adsNew,
+            errorMessage: errors.length > 0 ? errors.join('; ') : undefined,
           },
         });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`Scrape failed for keyword "${kw.keyword}":`, errorMessage);
         await prisma.parseLog.create({
           data: {
             keywordId: kw.id,
@@ -146,7 +168,12 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      results.push({ keyword: kw.keyword, adsFound, adsNew });
+      results.push({ keyword: kw.keyword, adsFound, adsNew, errors });
+
+      // Delay between keywords to avoid launching too many browser instances
+      if (i < activeKeywords.length - 1) {
+        await sleep(1000);
+      }
     }
 
     return NextResponse.json({ success: true, results });
