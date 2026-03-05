@@ -101,6 +101,7 @@ function SkeletonCard() {
 export default function DashboardPage() {
   const [ads, setAds] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
+  const [source, setSource] = useState<"live" | "db">("db");
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
   const [vertical, setVertical] = useState("");
@@ -120,6 +121,8 @@ export default function DashboardPage() {
       if (minDays) params.set("minDays", minDays);
       params.set("sort", sort);
       params.set("page", String(page));
+      // If user has a search query, use live scraping
+      if (query) params.set("source", "live");
 
       const token = localStorage.getItem("token");
       const res = await fetch(`/api/ads?${params.toString()}`, {
@@ -127,10 +130,11 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
-        const data: AdsResponse = await res.json();
+        const data: AdsResponse & { source?: string } = await res.json();
         setAds(data.ads);
         setTotalPages(data.totalPages);
         setTotal(data.total);
+        setSource(data.source === "live" ? "live" : "db");
       }
     } catch {
       // silently fail
@@ -155,8 +159,24 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Search Ads</h1>
-          <span className="text-sm text-muted">
-            {total > 0 && `${total.toLocaleString()} ads found`}
+          <span className="text-sm text-muted flex items-center gap-2">
+            {loading && query && (
+              <span className="flex items-center gap-1.5 text-primary">
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Searching FB Ad Library...
+              </span>
+            )}
+            {!loading && total > 0 && (
+              <>
+                {total.toLocaleString()} ads found
+                {source === "live" && (
+                  <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">LIVE</span>
+                )}
+              </>
+            )}
           </span>
         </div>
 
