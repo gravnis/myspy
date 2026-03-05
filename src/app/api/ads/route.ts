@@ -138,8 +138,34 @@ export async function GET(request: NextRequest) {
           });
         }
       } catch (err) {
-        console.error('Live scrape failed, falling back to DB:', err);
-        // Fall through to DB query below
+        const scrapeError = err instanceof Error ? err.message : String(err);
+        console.error('Live scrape failed, falling back to DB:', scrapeError);
+        // Fall through to DB query below, include error in response for debugging
+        const where: Prisma.AdWhereInput = {};
+        if (q) {
+          where.OR = [
+            { adText: { contains: q, mode: 'insensitive' } },
+            { advertiserName: { contains: q, mode: 'insensitive' } },
+            { linkTitle: { contains: q, mode: 'insensitive' } },
+            { linkDescription: { contains: q, mode: 'insensitive' } },
+            { landingUrl: { contains: q, mode: 'insensitive' } },
+          ];
+        }
+        if (country) where.countries = { has: country };
+        if (vertical) where.vertical = { slug: vertical };
+        if (minDays) where.daysActive = { gte: parseInt(minDays, 10) };
+
+        const [ads, total] = await Promise.all([
+          prisma.ad.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit, include: { creatives: { take: 1 }, vertical: true } }),
+          prisma.ad.count({ where }),
+        ]);
+
+        return NextResponse.json({
+          ads, total, page,
+          totalPages: Math.ceil(total / limit),
+          source: 'db',
+          scrapeError,
+        });
       }
     }
 
