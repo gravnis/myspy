@@ -9,10 +9,20 @@ import puppeteer from 'puppeteer';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const KEYWORDS = [
-  'gambling', 'casino', 'betting', 'nutra', 'weight loss', 'crypto trading', 'dating app', 'ecommerce store',
+  // English
+  'gambling', 'casino', 'betting', 'nutra', 'weight loss', 'crypto trading',
+  'dating app', 'ecommerce store', 'forex', 'binary options', 'sweepstakes',
+  // Russian
   'казино', 'ставки', 'похудение', 'крипто', 'знакомства', 'заработок', 'кредит', 'займ',
+  'игровые автоматы', 'букмекер', 'трейдинг', 'инвестиции',
 ];
-const COUNTRIES = ['US', 'GB', 'DE', 'UA', 'RU', 'PL'];
+const COUNTRIES = [
+  'US', 'GB', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'AT', 'CH',  // Tier 1
+  'UA', 'RU', 'PL', 'CZ', 'RO', 'HU', 'BG',                     // Eastern Europe
+  'BR', 'MX', 'AR', 'CO',                                          // LATAM
+  'IN', 'PH', 'TH', 'VN', 'ID',                                   // Asia
+  'AU', 'CA', 'NZ', 'ZA', 'NG', 'KE',                            // Other
+];
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
