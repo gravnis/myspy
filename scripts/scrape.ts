@@ -303,11 +303,39 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
   }
 }
 
+// Vertical detection (same logic as src/lib/utils.ts)
+const VERTICAL_KW: Record<string, string[]> = {
+  gambling: ['casino', 'bet', 'slot', 'poker', 'gambling', 'jackpot', 'roulette', 'blackjack', 'казино', 'ставки', 'слот'],
+  nutra: ['weight loss', 'diet', 'supplement', 'health', 'beauty', 'skin', 'cream', 'похудение', 'диета', 'крем', 'keto', 'detox'],
+  crypto: ['bitcoin', 'crypto', 'trading', 'forex', 'btc', 'eth', 'blockchain', 'биткоин', 'крипто', 'трейдинг', 'invest'],
+  dating: ['dating', 'meet', 'love', 'singles', 'relationship', 'знакомства', 'свидание'],
+  ecom: ['shop', 'buy', 'sale', 'discount', 'offer', 'price', 'order', 'купить', 'скидка', 'магазин', 'shipping'],
+  finance: ['loan', 'credit', 'insurance', 'bank', 'money', 'кредит', 'займ', 'страховка'],
+};
+
+function detectVertical(text: string): string {
+  if (!text) return 'other';
+  const lower = text.toLowerCase();
+  let best = 'other', bestScore = 0;
+  for (const [v, kws] of Object.entries(VERTICAL_KW)) {
+    const score = kws.filter(k => lower.includes(k)).length;
+    if (score > bestScore) { bestScore = score; best = v; }
+  }
+  return best;
+}
+
+let verticalMap: Map<string, string> | null = null;
+
 async function saveToDb(ads: any[]) {
-  // Use pg directly to write to Neon
   const { default: pg } = await import('pg');
   const client = new pg.Client({ connectionString: DATABASE_URL });
   await client.connect();
+
+  // Load vertical IDs once
+  if (!verticalMap) {
+    const vres = await client.query('SELECT id, slug FROM verticals');
+    verticalMap = new Map(vres.rows.map((v: any) => [v.slug, v.id]));
+  }
 
   let saved = 0, updated = 0;
 
@@ -315,6 +343,8 @@ async function saveToDb(ads: any[]) {
     try {
       const text = [ad.adText, ad.linkTitle, ad.linkDescription].filter(Boolean).join(' ') || null;
       const daysActive = ad.startedAt ? Math.max(1, Math.floor((Date.now() - new Date(ad.startedAt).getTime()) / 86400000)) : 0;
+      const vertSlug = detectVertical(text || '');
+      const verticalId = vertSlug !== 'other' ? verticalMap.get(vertSlug) || null : null;
 
       const existing = await client.query('SELECT id FROM ads WHERE fb_ad_id = $1', [ad.fbAdId]);
 
@@ -322,15 +352,15 @@ async function saveToDb(ads: any[]) {
       if (existing.rows.length > 0) {
         adId = existing.rows[0].id;
         await client.query(
-          'UPDATE ads SET last_seen_at = NOW(), is_active = $1, days_active = $2 WHERE fb_ad_id = $3',
-          [ad.isActive, daysActive, ad.fbAdId]
+          'UPDATE ads SET last_seen_at = NOW(), is_active = $1, days_active = $2, vertical_id = COALESCE(vertical_id, $3) WHERE fb_ad_id = $4',
+          [ad.isActive, daysActive, verticalId, ad.fbAdId]
         );
         updated++;
       } else {
         const insertResult = await client.query(
-          `INSERT INTO ads (id, fb_ad_id, advertiser_name, advertiser_id, ad_text, landing_url, countries, platforms, started_at, last_seen_at, is_active, days_active, created_at)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, NOW()) RETURNING id`,
-          [ad.fbAdId, ad.advertiserName, ad.advertiserId, text, ad.landingUrl, [ad.country], ad.platforms || [], ad.startedAt ? new Date(ad.startedAt) : null, ad.isActive, daysActive]
+          `INSERT INTO ads (id, fb_ad_id, advertiser_name, advertiser_id, ad_text, landing_url, countries, platforms, started_at, last_seen_at, is_active, days_active, vertical_id, created_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, $11, NOW()) RETURNING id`,
+          [ad.fbAdId, ad.advertiserName, ad.advertiserId, text, ad.landingUrl, [ad.country], ad.platforms || [], ad.startedAt ? new Date(ad.startedAt) : null, ad.isActive, daysActive, verticalId]
         );
         adId = insertResult.rows[0].id;
         saved++;
