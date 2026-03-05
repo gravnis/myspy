@@ -2,30 +2,23 @@ name: Scrape FB Ad Library
 
 on:
   schedule:
-    # Run every 6 hours
-    - cron: '0 */6 * * *'
-  workflow_dispatch: # Allow manual trigger
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
-
+          node-version: "22"
+          cache: "npm"
       - run: npm ci
-
-      - name: Install Chromium dependencies
-        run: npx puppeteer browsers install chrome
-
-      - name: Run scraper (random batch of 25 combos)
+      - run: npx puppeteer browsers install chrome
+      - name: Run scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          MAX_COMBOS: '25'
+          MAX_COMBOS: "25"
         run: npx tsx scripts/scrape.ts
