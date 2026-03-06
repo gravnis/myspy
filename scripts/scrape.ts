@@ -242,19 +242,24 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
 
           const isActive = text.toLowerCase().includes('active') && !text.toLowerCase().includes('inactive');
 
-          // Images — only large creative images (not avatars/icons)
+          // Images — only real ad creatives (not avatars/logos/icons)
           const imageUrls: string[] = [];
           card.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src') || '';
             if (!src || src.startsWith('data:')) return;
-            // Skip small images (avatars, icons) — real ad creatives are 100px+
+            // Skip small FB CDN thumbnails by URL pattern (avatars are s60x60, s100x100, p75x75 etc)
+            if (/[_&?]s\d{1,3}x\d{1,3}[_&]|p\d{2,3}x\d{2,3}/.test(src)) return;
+            // Skip small rendered images
             const w = img.width || img.naturalWidth || 0;
             const h = img.height || img.naturalHeight || 0;
             if (w < 100 && h < 100) return;
-            // Skip profile pictures (usually in circular containers or very small)
+            // Skip profile pictures (circular containers)
             const parent = img.parentElement;
             const parentStyle = parent ? getComputedStyle(parent) : null;
             if (parentStyle?.borderRadius === '50%') return;
+            // Skip very small natural dimensions (even if CSS stretches them)
+            if (img.naturalWidth > 0 && img.naturalWidth < 150) return;
+            if (img.naturalHeight > 0 && img.naturalHeight < 150) return;
             imageUrls.push(src);
           });
 
