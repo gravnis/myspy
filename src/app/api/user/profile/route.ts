@@ -102,4 +102,6 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export const PATCH = PUT;
+export async function PATCH(request: NextRequest) {
+  return PUT(request);
+}

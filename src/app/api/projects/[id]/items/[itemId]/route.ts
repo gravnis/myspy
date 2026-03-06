@@ -54,4 +54,9 @@ export async function PUT(
   }
 }
 
-export const PATCH = PUT;
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string; itemId: string }> }
+) {
+  return PUT(request, context);
+}
