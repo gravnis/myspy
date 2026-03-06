@@ -6,6 +6,10 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import Card from "@/components/ui/Card";
 
+function proxyUrl(url: string) {
+  return `/api/proxy/image?u=${btoa(unescape(encodeURIComponent(url)))}`;
+}
+
 interface AdCreative {
   id: string;
   type: string;
@@ -106,7 +110,7 @@ export default function AdDetailPage() {
                   {ad.creatives.map((c) => (
                     <img
                       key={c.id}
-                      src={c.b2Key || c.originalUrl || ""}
+                      src={c.b2Key || (c.originalUrl ? proxyUrl(c.originalUrl) : "")}
                       alt="Ad creative"
                       className="w-full object-contain max-h-[600px] bg-gray-50"
                     />
@@ -156,7 +160,21 @@ export default function AdDetailPage() {
                 </svg>
                 Save to Project
               </button>
-              <button className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+              <button
+                onClick={() => {
+                  if (ad.creatives && ad.creatives.length > 0) {
+                    const url = ad.creatives[0].b2Key || ad.creatives[0].originalUrl;
+                    if (url) {
+                      const a = document.createElement("a");
+                      a.href = proxyUrl(url) + "&download=1";
+                      a.download = `creative-${ad.fbAdId}.jpg`;
+                      a.click();
+                    }
+                  }
+                }}
+                disabled={!ad.creatives || ad.creatives.length === 0}
+                className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>

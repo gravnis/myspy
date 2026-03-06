@@ -305,12 +305,12 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
 
 // Vertical detection (same logic as src/lib/utils.ts)
 const VERTICAL_KW: Record<string, string[]> = {
-  gambling: ['casino', 'bet', 'slot', 'poker', 'gambling', 'jackpot', 'roulette', 'blackjack', 'казино', 'ставки', 'слот'],
-  nutra: ['weight loss', 'diet', 'supplement', 'health', 'beauty', 'skin', 'cream', 'похудение', 'диета', 'крем', 'keto', 'detox'],
-  crypto: ['bitcoin', 'crypto', 'trading', 'forex', 'btc', 'eth', 'blockchain', 'биткоин', 'крипто', 'трейдинг', 'invest'],
-  dating: ['dating', 'meet', 'love', 'singles', 'relationship', 'знакомства', 'свидание'],
-  ecom: ['shop', 'buy', 'sale', 'discount', 'offer', 'price', 'order', 'купить', 'скидка', 'магазин', 'shipping'],
-  finance: ['loan', 'credit', 'insurance', 'bank', 'money', 'кредит', 'займ', 'страховка'],
+  gambling: ['casino', 'slot machine', 'jackpot', 'roulette', 'blackjack', 'poker', 'gambling', 'казино', 'слот', 'рулетка', 'покер', 'игровые автоматы', 'азартн'],
+  nutra: ['weight loss', 'diet pill', 'fat burner', 'keto diet', 'detox', 'anti-aging', 'supplement', 'skin care', 'hair growth', 'joint pain', 'blood sugar', 'похудение', 'жиросжигат', 'крем от', 'омолож'],
+  crypto: ['bitcoin', 'cryptocurrency', 'crypto trading', 'blockchain', 'ethereum', 'btc', 'forex trading', 'trading platform', 'биткоин', 'криптовалют', 'трейдинг'],
+  dating: ['dating app', 'dating site', 'meet singles', 'find love', 'hookup', 'знакомства', 'сайт знакомств'],
+  ecom: ['free shipping', 'add to cart', 'order now', 'limited offer', 'shop now', 'buy now', 'интернет магазин', 'распродажа', 'купить сейчас'],
+  finance: ['personal loan', 'credit card', 'payday loan', 'fast cash', 'insurance', 'mortgage', 'микрозайм', 'быстрый кредит'],
 };
 
 function detectVertical(text: string): string {

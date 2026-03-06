@@ -5,6 +5,10 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import Card from "@/components/ui/Card";
 
+function proxyUrl(url: string) {
+  return `/api/proxy/image?u=${btoa(unescape(encodeURIComponent(url)))}`;
+}
+
 interface AdCreative {
   id: string;
   type: string;
@@ -37,29 +41,53 @@ interface AdsResponse {
 
 const COUNTRIES = [
   { value: "", label: "All Countries" },
+  // Tier 1
   { value: "US", label: "United States" },
   { value: "GB", label: "United Kingdom" },
   { value: "DE", label: "Germany" },
   { value: "FR", label: "France" },
-  { value: "BR", label: "Brazil" },
-  { value: "IN", label: "India" },
-  { value: "RU", label: "Russia" },
-  { value: "UA", label: "Ukraine" },
-  { value: "PL", label: "Poland" },
   { value: "ES", label: "Spain" },
+  { value: "IT", label: "Italy" },
+  { value: "NL", label: "Netherlands" },
+  { value: "BE", label: "Belgium" },
+  { value: "AT", label: "Austria" },
+  { value: "CH", label: "Switzerland" },
+  { value: "AU", label: "Australia" },
+  { value: "CA", label: "Canada" },
+  { value: "NZ", label: "New Zealand" },
+  // Eastern Europe
+  { value: "UA", label: "Ukraine" },
+  { value: "RU", label: "Russia" },
+  { value: "PL", label: "Poland" },
+  { value: "CZ", label: "Czech Republic" },
+  { value: "RO", label: "Romania" },
+  { value: "HU", label: "Hungary" },
+  { value: "BG", label: "Bulgaria" },
+  // LATAM
+  { value: "BR", label: "Brazil" },
+  { value: "MX", label: "Mexico" },
+  { value: "AR", label: "Argentina" },
+  { value: "CO", label: "Colombia" },
+  // Asia
+  { value: "IN", label: "India" },
+  { value: "PH", label: "Philippines" },
+  { value: "TH", label: "Thailand" },
+  { value: "VN", label: "Vietnam" },
+  { value: "ID", label: "Indonesia" },
+  // Africa
+  { value: "ZA", label: "South Africa" },
+  { value: "NG", label: "Nigeria" },
+  { value: "KE", label: "Kenya" },
 ];
 
 const VERTICALS = [
   { value: "", label: "All Verticals" },
   { value: "gambling", label: "Gambling" },
-  { value: "betting", label: "Betting" },
   { value: "nutra", label: "Nutra" },
-  { value: "dating", label: "Dating" },
   { value: "crypto", label: "Crypto" },
   { value: "finance", label: "Finance" },
-  { value: "ecommerce", label: "E-commerce" },
-  { value: "gaming", label: "Gaming" },
-  { value: "sweepstakes", label: "Sweepstakes" },
+  { value: "dating", label: "Dating" },
+  { value: "ecom", label: "E-commerce" },
 ];
 
 const DURATIONS = [
@@ -277,7 +305,7 @@ export default function DashboardPage() {
                   {ad.creatives?.[0]?.originalUrl ? (
                     <div className="aspect-video bg-gray-100 overflow-hidden">
                       <img
-                        src={ad.creatives[0].originalUrl}
+                        src={proxyUrl(ad.creatives[0].originalUrl)}
                         alt="Ad creative"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
