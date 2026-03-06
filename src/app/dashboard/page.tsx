@@ -99,6 +99,12 @@ const DURATIONS = [
   { value: "30", label: "30d+" },
 ];
 
+const CREATIVE_TYPES = [
+  { value: "", label: "All Creatives" },
+  { value: "IMAGE", label: "Image" },
+  { value: "VIDEO", label: "Video" },
+];
+
 const SORTS = [
   { value: "date", label: "Date" },
   { value: "duration", label: "Duration" },
@@ -139,6 +145,7 @@ export default function DashboardPage() {
   const [country, setCountry] = useState("");
   const [vertical, setVertical] = useState("");
   const [minDays, setMinDays] = useState("");
+  const [creativeType, setCreativeType] = useState("");
   const [sort, setSort] = useState("date");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -197,6 +204,7 @@ export default function DashboardPage() {
       if (country) params.set("country", country);
       if (vertical) params.set("vertical", vertical);
       if (minDays) params.set("minDays", minDays);
+      if (creativeType) params.set("creativeType", creativeType);
       params.set("sort", sort);
       params.set("page", String(page));
       // If user has a search query, use live scraping
@@ -219,7 +227,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, country, vertical, minDays, sort, page]);
+  }, [query, country, vertical, minDays, creativeType, sort, page]);
 
   useEffect(() => {
     fetchAds();
@@ -313,6 +321,16 @@ export default function DashboardPage() {
           >
             {DURATIONS.map((d) => (
               <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={creativeType}
+            onChange={(e) => { setCreativeType(e.target.value); setPage(1); }}
+            className="px-4 py-2.5 border border-card-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+          >
+            {CREATIVE_TYPES.map((ct) => (
+              <option key={ct.value} value={ct.value}>{ct.label}</option>
             ))}
           </select>
 

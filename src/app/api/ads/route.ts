@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const country = searchParams.get('country');
     const vertical = searchParams.get('vertical');
     const minDays = searchParams.get('minDays');
+    const creativeType = searchParams.get('creativeType');
     const sort = searchParams.get('sort') || 'date';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '24', 10)));
@@ -39,6 +40,10 @@ export async function GET(request: NextRequest) {
 
     if (minDays) {
       where.daysActive = { gte: parseInt(minDays, 10) };
+    }
+
+    if (creativeType === 'IMAGE' || creativeType === 'VIDEO') {
+      where.creatives = { some: { type: creativeType, originalUrl: { not: null } } };
     }
 
     let orderBy: Prisma.AdOrderByWithRelationInput;
