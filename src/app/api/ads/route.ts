@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
     const vertical = searchParams.get('vertical');
     const minDays = searchParams.get('minDays');
     const creativeType = searchParams.get('creativeType');
+    const dateRange = searchParams.get('dateRange');
+    const advertiser = searchParams.get('advertiser');
     const sort = searchParams.get('sort') || 'date';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '24', 10)));
@@ -44,6 +46,17 @@ export async function GET(request: NextRequest) {
 
     if (creativeType === 'IMAGE' || creativeType === 'VIDEO') {
       where.creatives = { some: { type: creativeType, originalUrl: { not: null } } };
+    }
+
+    if (dateRange) {
+      const days = parseInt(dateRange, 10);
+      if (days > 0) {
+        where.createdAt = { gte: new Date(Date.now() - days * 86400000) };
+      }
+    }
+
+    if (advertiser) {
+      where.advertiserName = { contains: advertiser, mode: 'insensitive' };
     }
 
     let orderBy: Prisma.AdOrderByWithRelationInput;

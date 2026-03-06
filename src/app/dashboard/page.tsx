@@ -105,10 +105,20 @@ const CREATIVE_TYPES = [
   { value: "VIDEO", label: "Video" },
 ];
 
+const DATE_RANGES = [
+  { value: "", label: "Any Date" },
+  { value: "1", label: "Last 24h" },
+  { value: "3", label: "Last 3 days" },
+  { value: "7", label: "Last 7 days" },
+  { value: "14", label: "Last 14 days" },
+  { value: "30", label: "Last 30 days" },
+  { value: "90", label: "Last 90 days" },
+];
+
 const SORTS = [
-  { value: "date", label: "Date" },
-  { value: "duration", label: "Duration" },
-  { value: "saves", label: "Saves" },
+  { value: "date", label: "Newest" },
+  { value: "duration", label: "Longest Running" },
+  { value: "saves", label: "Most Saved" },
 ];
 
 function SkeletonCard() {
@@ -146,6 +156,8 @@ export default function DashboardPage() {
   const [vertical, setVertical] = useState("");
   const [minDays, setMinDays] = useState("");
   const [creativeType, setCreativeType] = useState("");
+  const [dateRange, setDateRange] = useState("");
+  const [advertiser, setAdvertiser] = useState("");
   const [sort, setSort] = useState("date");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -205,6 +217,8 @@ export default function DashboardPage() {
       if (vertical) params.set("vertical", vertical);
       if (minDays) params.set("minDays", minDays);
       if (creativeType) params.set("creativeType", creativeType);
+      if (dateRange) params.set("dateRange", dateRange);
+      if (advertiser.trim()) params.set("advertiser", advertiser.trim());
       params.set("sort", sort);
       params.set("page", String(page));
       // If user has a search query, use live scraping
@@ -227,7 +241,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, country, vertical, minDays, creativeType, sort, page]);
+  }, [query, country, vertical, minDays, creativeType, dateRange, advertiser, sort, page]);
 
   useEffect(() => {
     fetchAds();
@@ -245,7 +259,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Search Ads</h1>
-          <span className="text-sm text-muted flex items-center gap-2">
+          <span className="text-sm text-muted flex items-center gap-3">
             {loading && query && (
               <span className="flex items-center gap-1.5 text-primary">
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -261,6 +275,31 @@ export default function DashboardPage() {
                 {source === "live" && (
                   <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">LIVE</span>
                 )}
+                <button
+                  onClick={() => {
+                    const csvRows = [
+                      ["Advertiser", "Text", "Countries", "Vertical", "Days Active", "Landing URL", "FB Ad ID"].join(","),
+                      ...ads.map(ad => [
+                        `"${(ad.advertiserName || "").replace(/"/g, '""')}"`,
+                        `"${(ad.adText || "").replace(/"/g, '""').replace(/\n/g, ' ').slice(0, 200)}"`,
+                        `"${ad.countries.join('; ')}"`,
+                        `"${ad.vertical?.name || ''}"`,
+                        ad.daysActive,
+                        `"${ad.landingUrl || ''}"`,
+                        ad.creatives?.[0]?.id || "",
+                      ].join(","))
+                    ].join("\n");
+                    const blob = new Blob(["\uFEFF" + csvRows], { type: "text/csv;charset=utf-8" });
+                    const u = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = u; a.download = `myspy-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+                    URL.revokeObjectURL(u);
+                  }}
+                  className="px-2 py-1 text-[10px] border border-card-border rounded hover:bg-gray-50 text-muted hover:text-foreground transition-colors"
+                  title="Export current page to CSV"
+                >
+                  CSV
+                </button>
               </>
             )}
           </span>
@@ -335,6 +374,16 @@ export default function DashboardPage() {
           </select>
 
           <select
+            value={dateRange}
+            onChange={(e) => { setDateRange(e.target.value); setPage(1); }}
+            className="px-4 py-2.5 border border-card-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+          >
+            {DATE_RANGES.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
+          </select>
+
+          <select
             value={sort}
             onChange={(e) => { setSort(e.target.value); setPage(1); }}
             className="px-4 py-2.5 border border-card-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
@@ -343,6 +392,27 @@ export default function DashboardPage() {
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
+        </div>
+
+        {/* Second filter row — advertiser search */}
+        <div className="flex flex-wrap gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <input
+              type="text"
+              placeholder="Filter by advertiser name..."
+              value={advertiser}
+              onChange={(e) => { setAdvertiser(e.target.value); setPage(1); }}
+              className="w-full px-3 py-2 border border-card-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            />
+          </div>
+          {(country || vertical || minDays || creativeType || dateRange || advertiser) && (
+            <button
+              onClick={() => { setCountry(""); setVertical(""); setMinDays(""); setCreativeType(""); setDateRange(""); setAdvertiser(""); setPage(1); }}
+              className="px-3 py-2 text-xs text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
 
         {/* Ads Grid */}
