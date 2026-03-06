@@ -38,12 +38,21 @@ interface AdDetail {
   creatives: AdCreative[];
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+}
+
 export default function AdDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const [ad, setAd] = useState<AdDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [savingToProject, setSavingToProject] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAd() {
@@ -63,6 +72,46 @@ export default function AdDetailPage() {
     }
     fetchAd();
   }, [id]);
+
+  const loadProjects = async () => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("/api/projects", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data.projects || []);
+      }
+    } catch {}
+  };
+
+  const handleSaveToProject = async (projectId: string) => {
+    setSavingToProject(true);
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`/api/projects/${projectId}/items`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ adId: id }),
+      });
+      if (res.ok) {
+        setSaveSuccess(projects.find(p => p.id === projectId)?.name || "Project");
+        setShowSaveModal(false);
+        setTimeout(() => setSaveSuccess(null), 3000);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to save");
+      }
+    } catch {
+      alert("Failed to save to project");
+    } finally {
+      setSavingToProject(false);
+    }
+  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-US", {
@@ -181,7 +230,15 @@ export default function AdDetailPage() {
           <div className="space-y-6">
             {/* Actions */}
             <Card className="space-y-3">
-              <button className="w-full py-2.5 px-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium flex items-center justify-center gap-2">
+              {saveSuccess && (
+                <div className="px-3 py-2 bg-green-50 text-green-700 text-sm rounded-lg border border-green-100">
+                  Saved to {saveSuccess}
+                </div>
+              )}
+              <button
+                onClick={() => { loadProjects(); setShowSaveModal(true); }}
+                className="w-full py-2.5 px-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium flex items-center justify-center gap-2"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                 </svg>
@@ -209,11 +266,15 @@ export default function AdDetailPage() {
                 </svg>
                 Download Creative
               </button>
-              <button className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+              <button
+                disabled
+                className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
+                title="Coming soon — AI creative generation"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Generate Similar
+                Generate Similar (Soon)
               </button>
             </Card>
 
@@ -298,6 +359,37 @@ export default function AdDetailPage() {
                 </div>
               </div>
             </Card>
+          </div>
+        </div>
+      )}
+      {/* Save to Project Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-foreground">Save to Project</h3>
+              <button onClick={() => setShowSaveModal(false)} className="text-muted hover:text-foreground">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {projects.length === 0 ? (
+              <p className="text-sm text-muted py-4 text-center">No projects yet. Create one in the Projects tab.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSaveToProject(p.id)}
+                    disabled={savingToProject}
+                    className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-50 border border-card-border text-sm text-foreground transition-colors disabled:opacity-50"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -58,13 +58,13 @@ export default function AdminUsersPage() {
 
   const handleRoleChange = async (userId: string, role: string) => {
     try {
-      await fetch(`/api/admin/users`, {
-        method: "PATCH",
+      await fetch(`/api/admin/users/${userId}`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({ userId, field: "role", value: role }),
+        body: JSON.stringify({ role }),
       });
       fetchUsers();
     } catch {
@@ -74,13 +74,13 @@ export default function AdminUsersPage() {
 
   const handlePlanChange = async (userId: string, plan: string) => {
     try {
-      await fetch(`/api/admin/users`, {
-        method: "PATCH",
+      await fetch(`/api/admin/users/${userId}`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({ userId, field: "plan", value: plan }),
+        body: JSON.stringify({ plan }),
       });
       fetchUsers();
     } catch {
@@ -89,19 +89,8 @@ export default function AdminUsersPage() {
   };
 
   const handleBlockToggle = async (userId: string, blocked: boolean) => {
-    try {
-      await fetch(`/api/admin/users`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ userId, field: "blocked", value: !blocked }),
-      });
-      fetchUsers();
-    } catch {
-      console.error("Failed to toggle block");
-    }
+    // TODO: add blocked field to User model if needed
+    console.log("Block toggle not yet supported:", userId, blocked);
   };
 
   const formatDate = (dateStr: string) => {

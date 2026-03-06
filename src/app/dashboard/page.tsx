@@ -126,6 +126,11 @@ function SkeletonCard() {
   );
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+}
+
 export default function DashboardPage() {
   const [ads, setAds] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,6 +143,51 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [saveModalAdId, setSaveModalAdId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [savingToProject, setSavingToProject] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
+  const loadProjects = async () => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("/api/projects", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data.projects || []);
+      }
+    } catch {}
+  };
+
+  const handleSaveToProject = async (projectId: string) => {
+    if (!saveModalAdId) return;
+    setSavingToProject(true);
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`/api/projects/${projectId}/items`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ adId: saveModalAdId }),
+      });
+      if (res.ok) {
+        setSaveSuccess(projects.find(p => p.id === projectId)?.name || "Project");
+        setSaveModalAdId(null);
+        setTimeout(() => setSaveSuccess(null), 3000);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to save");
+      }
+    } catch {
+      alert("Failed to save to project");
+    } finally {
+      setSavingToProject(false);
+    }
+  };
 
   const fetchAds = useCallback(async () => {
     setLoading(true);
@@ -386,7 +436,8 @@ export default function DashboardPage() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          // TODO: save to project
+                          loadProjects();
+                          setSaveModalAdId(ad.id);
                         }}
                         className="p-2 rounded-lg hover:bg-gray-100 text-muted hover:text-primary transition-colors"
                         title="Save to project"
@@ -426,6 +477,45 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Save success toast */}
+      {saveSuccess && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 shadow-lg">
+          Saved to {saveSuccess}
+        </div>
+      )}
+
+      {/* Save to Project Modal */}
+      {saveModalAdId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSaveModalAdId(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-foreground">Save to Project</h3>
+              <button onClick={() => setSaveModalAdId(null)} className="text-muted hover:text-foreground">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {projects.length === 0 ? (
+              <p className="text-sm text-muted py-4 text-center">No projects yet. Create one in the Projects tab.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSaveToProject(p.id)}
+                    disabled={savingToProject}
+                    className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-50 border border-card-border text-sm text-foreground transition-colors disabled:opacity-50"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
