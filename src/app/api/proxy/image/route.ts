@@ -43,13 +43,17 @@ export async function GET(request: NextRequest) {
 
     const contentType = res.headers.get('content-type') || 'application/octet-stream';
     const isVideo = contentType.startsWith('video/');
-    const buffer = await res.arrayBuffer();
+    const contentLength = res.headers.get('content-length');
 
     const headers: Record<string, string> = {
       'Content-Type': contentType,
       'Cache-Control': isVideo ? 'public, max-age=3600' : 'public, max-age=86400',
       'Accept-Ranges': 'bytes',
     };
+
+    if (contentLength) {
+      headers['Content-Length'] = contentLength;
+    }
 
     // Forward content-range for partial responses (video seeking)
     const contentRange = res.headers.get('content-range');
@@ -67,6 +71,17 @@ export async function GET(request: NextRequest) {
       headers['Content-Disposition'] = `attachment; filename="creative.${ext}"`;
     }
 
+    // Stream the response body instead of buffering into memory
+    // This is critical for large video files
+    if (res.body) {
+      return new NextResponse(res.body as ReadableStream, {
+        status: res.status === 206 ? 206 : 200,
+        headers,
+      });
+    }
+
+    // Fallback: buffer for small files
+    const buffer = await res.arrayBuffer();
     return new NextResponse(buffer, {
       status: res.status === 206 ? 206 : 200,
       headers,

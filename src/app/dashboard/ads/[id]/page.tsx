@@ -244,28 +244,55 @@ export default function AdDetailPage() {
                 </svg>
                 Save to Project
               </button>
-              <button
-                onClick={() => {
-                  if (ad.creatives && ad.creatives.length > 0) {
-                    const creative = ad.creatives[0];
-                    const url = creative.b2Key || creative.originalUrl;
-                    if (url) {
-                      const ext = creative.type === 'VIDEO' ? 'mp4' : 'jpg';
-                      const a = document.createElement("a");
-                      a.href = proxyUrl(url) + "&download=1";
-                      a.download = `creative-${ad.fbAdId}.${ext}`;
-                      a.click();
-                    }
-                  }
-                }}
-                disabled={!ad.creatives || ad.creatives.length === 0}
-                className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download Creative
-              </button>
+              {/* Download buttons for each creative type */}
+              {(() => {
+                const creos = (ad.creatives || []).filter(c => c.originalUrl);
+                const images = creos.filter(c => c.type === 'IMAGE');
+                const videos = creos.filter(c => c.type === 'VIDEO');
+                const downloadCreative = (c: AdCreative, label: string) => {
+                  const url = c.originalUrl;
+                  if (!url) return;
+                  const ext = c.type === 'VIDEO' ? 'mp4' : 'jpg';
+                  const a = document.createElement("a");
+                  a.href = proxyUrl(url) + "&download=1";
+                  a.download = `${label}-${ad.fbAdId}.${ext}`;
+                  a.click();
+                };
+                return (
+                  <>
+                    {images.length > 0 && (
+                      <button
+                        onClick={() => downloadCreative(images[0], 'image')}
+                        className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download Image (Original)
+                      </button>
+                    )}
+                    {videos.length > 0 && (
+                      <button
+                        onClick={() => downloadCreative(videos[0], 'video')}
+                        className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download Video
+                      </button>
+                    )}
+                    {creos.length === 0 && (
+                      <button disabled className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg text-sm font-medium flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        No Creatives
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
               <button
                 disabled
                 className="w-full py-2.5 px-4 bg-white border border-card-border text-foreground rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
