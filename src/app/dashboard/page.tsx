@@ -151,7 +151,6 @@ interface ProjectOption {
 export default function DashboardPage() {
   const [ads, setAds] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<"live" | "db">("db");
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
   const [vertical, setVertical] = useState("");
@@ -209,6 +208,9 @@ export default function DashboardPage() {
     }
   };
 
+  const [liveScraping, setLiveScraping] = useState(false);
+  const [liveResult, setLiveResult] = useState<string | null>(null);
+
   const fetchAds = useCallback(async () => {
     setLoading(true);
     try {
@@ -222,8 +224,6 @@ export default function DashboardPage() {
       if (advertiser.trim()) params.set("advertiser", advertiser.trim());
       params.set("sort", sort);
       params.set("page", String(page));
-      // If user has a search query, use live scraping
-      if (query) params.set("source", "live");
 
       const token = localStorage.getItem("token");
       const res = await fetch(`/api/ads?${params.toString()}`, {
@@ -231,11 +231,43 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
-        const data: AdsResponse & { source?: string } = await res.json();
+        const data: AdsResponse = await res.json();
         setAds(data.ads);
         setTotalPages(data.totalPages);
         setTotal(data.total);
-        setSource(data.source === "live" ? "live" : "db");
+      }
+
+      // If user searched a query, fire live scrape in background to fetch fresh ads from FB
+      if (query && query.length >= 2 && page === 1) {
+        setLiveScraping(true);
+        setLiveResult(null);
+        const scrapeParams = new URLSearchParams({ q: query, country: country || 'US' });
+        fetch(`/api/scrape-live?${scrapeParams}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.saved > 0 || data.updated > 0) {
+              setLiveResult(`+${data.saved} new, ${data.updated} updated from FB`);
+              // Re-fetch ads to show new results
+              setTimeout(() => {
+                fetch(`/api/ads?${params.toString()}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                  .then(r => r.json())
+                  .then(freshData => {
+                    setAds(freshData.ads);
+                    setTotalPages(freshData.totalPages);
+                    setTotal(freshData.total);
+                  })
+                  .catch(() => {});
+              }, 500);
+            } else if (data.status === 'no_results') {
+              setLiveResult('No new ads found on FB');
+            } else if (data.error) {
+              setLiveResult(null);
+            }
+          })
+          .catch(() => setLiveResult(null))
+          .finally(() => setLiveScraping(false));
       }
     } catch {
       // silently fail
@@ -415,6 +447,23 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
+
+        {/* Live scraping indicator */}
+        {(liveScraping || liveResult) && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${liveScraping ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+            {liveScraping ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" />
+                <span>Searching FB Ad Library live...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                <span>{liveResult}</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Ads Grid */}
         {loading ? (
