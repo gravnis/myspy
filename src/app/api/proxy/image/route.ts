@@ -8,11 +8,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'URL param "u" is required (base64)' }, { status: 400 });
   }
 
+  const hq = request.nextUrl.searchParams.get('hq') === '1';
+
   let url: string;
   try {
     url = Buffer.from(b64, 'base64').toString('utf-8');
   } catch {
     return NextResponse.json({ error: 'Invalid base64' }, { status: 400 });
+  }
+
+  // For HQ/download mode: strip FB CDN size restrictions to get original quality
+  if (hq || download) {
+    try {
+      const parsed = new URL(url);
+      // Remove stp param (contains size restrictions like dst-jpg_s600x600)
+      parsed.searchParams.delete('stp');
+      url = parsed.toString();
+    } catch {}
   }
 
   // Only allow Facebook CDN domains

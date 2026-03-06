@@ -6,8 +6,9 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import Card from "@/components/ui/Card";
 
-function proxyUrl(url: string) {
-  return `/api/proxy/image?u=${btoa(unescape(encodeURIComponent(url)))}`;
+function proxyUrl(url: string, hq = false) {
+  const base = `/api/proxy/image?u=${btoa(unescape(encodeURIComponent(url)))}`;
+  return hq ? `${base}&hq=1` : base;
 }
 
 interface AdCreative {
@@ -168,8 +169,8 @@ export default function AdDetailPage() {
                         <div className="relative bg-black rounded-lg overflow-hidden">
                           <video
                             key={videoCreative.id}
-                            src={proxyUrl(videoCreative.originalUrl!)}
-                            poster={posterUrl ? proxyUrl(posterUrl) : undefined}
+                            src={proxyUrl(videoCreative.originalUrl!, true)}
+                            poster={posterUrl ? proxyUrl(posterUrl, true) : undefined}
                             controls
                             playsInline
                             preload="metadata"
@@ -184,7 +185,7 @@ export default function AdDetailPage() {
                     return imageCreatives.map((c) => (
                       <img
                         key={c.id}
-                        src={c.b2Key || proxyUrl(c.originalUrl!)}
+                        src={c.b2Key || proxyUrl(c.originalUrl!, true)}
                         alt="Ad creative"
                         className="w-full object-contain max-h-[600px] bg-gray-50"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

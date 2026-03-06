@@ -5,8 +5,9 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import Card from "@/components/ui/Card";
 
-function proxyUrl(url: string) {
-  return `/api/proxy/image?u=${btoa(unescape(encodeURIComponent(url)))}`;
+function proxyUrl(url: string, hq = false) {
+  const base = `/api/proxy/image?u=${btoa(unescape(encodeURIComponent(url)))}`;
+  return hq ? `${base}&hq=1` : base;
 }
 
 interface AdCreative {
@@ -449,7 +450,7 @@ export default function DashboardPage() {
                         return (
                           <>
                             <img
-                              src={proxyUrl(thumbUrl!)}
+                              src={proxyUrl(thumbUrl!, true)}
                               alt="Ad creative"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                               onError={(e) => {

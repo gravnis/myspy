@@ -223,12 +223,21 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
             }
           }
 
-          // Date
+          // Date — FB shows various formats
           let startedAt: string | null = null;
-          const dateMatch = text.match(/[Ss]tarted running on\s+(\w+\s+\d{1,2},?\s+\d{4})/) || text.match(/Показ начат\s+(\d{1,2}\s+\S+\s+\d{4})/);
-
-          if (dateMatch) {
-            try { const d = new Date(dateMatch[1]); if (!isNaN(d.getTime())) startedAt = d.toISOString(); } catch {}
+          const datePatterns = [
+            /[Ss]tarted running on\s+(\w+\s+\d{1,2},?\s+\d{4})/,
+            /[Ss]tarted running on\s+(\d{1,2}\s+\w+\s+\d{4})/,
+            /Показ начат\s+(\d{1,2}\s+\S+\s+\d{4})/,
+            /Started\s+(\w+\s+\d{1,2},?\s+\d{4})/,
+            /(\w{3,}\s+\d{1,2},?\s+\d{4})\s*-/,
+            /(\d{1,2}\s+\w{3,}\s+\d{4})\s*-/,
+          ];
+          for (const pat of datePatterns) {
+            const m = text.match(pat);
+            if (m) {
+              try { const d = new Date(m[1]); if (!isNaN(d.getTime())) { startedAt = d.toISOString(); break; } } catch {}
+            }
           }
 
           // Platforms
@@ -324,10 +333,15 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
             }
           }
 
+          // Strip FB CDN size restrictions (stp=dst-jpg_s600x600) to get original quality
+          const cleanImageUrls = imageUrls.map((u: string) => {
+            try { const p = new URL(u); p.searchParams.delete('stp'); return p.toString(); } catch { return u; }
+          });
+
           results.push({
             fbAdId, advertiserName, advertiserId, adText,
             linkTitle: null, linkDescription: null,
-            landingUrl, imageUrls, videoUrls, videoThumbnailUrl,
+            landingUrl, imageUrls: cleanImageUrls, videoUrls, videoThumbnailUrl,
             startedAt, isActive, platforms, country: c,
           });
         } catch { continue; }
@@ -381,7 +395,7 @@ async function saveToDb(ads: any[]) {
   for (const ad of ads) {
     try {
       const text = [ad.adText, ad.linkTitle, ad.linkDescription].filter(Boolean).join(' ') || null;
-      const daysActive = ad.startedAt ? Math.max(1, Math.floor((Date.now() - new Date(ad.startedAt).getTime()) / 86400000)) : 0;
+      const daysActive = ad.startedAt ? Math.max(1, Math.floor((Date.now() - new Date(ad.startedAt).getTime()) / 86400000)) : 1;
       const vertSlug = detectVertical(text || '');
       const verticalId = vertSlug !== 'other' ? verticalMap.get(vertSlug) || null : null;
 
