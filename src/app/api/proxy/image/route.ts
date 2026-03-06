@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  // URL passed as base64 to avoid query param encoding issues
   const b64 = request.nextUrl.searchParams.get('u');
   const download = request.nextUrl.searchParams.get('download') === '1';
 
@@ -30,25 +29,48 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Failed to fetch image' }, { status: 502 });
+    // Forward Range header for video seeking
+    const fetchHeaders: Record<string, string> = {};
+    const rangeHeader = request.headers.get('range');
+    if (rangeHeader) {
+      fetchHeaders['Range'] = rangeHeader;
     }
 
-    const contentType = res.headers.get('content-type') || 'image/jpeg';
+    const res = await fetch(url, { headers: fetchHeaders });
+    if (!res.ok && res.status !== 206) {
+      return NextResponse.json({ error: 'Failed to fetch media' }, { status: 502 });
+    }
+
+    const contentType = res.headers.get('content-type') || 'application/octet-stream';
+    const isVideo = contentType.startsWith('video/');
     const buffer = await res.arrayBuffer();
 
     const headers: Record<string, string> = {
       'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': isVideo ? 'public, max-age=3600' : 'public, max-age=86400',
+      'Accept-Ranges': 'bytes',
     };
 
+    // Forward content-range for partial responses (video seeking)
+    const contentRange = res.headers.get('content-range');
+    if (contentRange) {
+      headers['Content-Range'] = contentRange;
+    }
+
     if (download) {
-      const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+      let ext = 'bin';
+      if (contentType.includes('png')) ext = 'png';
+      else if (contentType.includes('webp')) ext = 'webp';
+      else if (contentType.includes('mp4')) ext = 'mp4';
+      else if (contentType.includes('webm')) ext = 'webm';
+      else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
       headers['Content-Disposition'] = `attachment; filename="creative.${ext}"`;
     }
 
-    return new NextResponse(buffer, { status: 200, headers });
+    return new NextResponse(buffer, {
+      status: res.status === 206 ? 206 : 200,
+      headers,
+    });
   } catch {
     return NextResponse.json({ error: 'Proxy failed' }, { status: 500 });
   }

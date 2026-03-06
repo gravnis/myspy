@@ -242,6 +242,29 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
 
           const isActive = text.toLowerCase().includes('active') && !text.toLowerCase().includes('inactive');
 
+          // Videos — extract video source URLs and their poster/thumbnail
+          const videoUrls: string[] = [];
+          let videoThumbnailUrl: string | null = null;
+          card.querySelectorAll('video').forEach(video => {
+            const src = video.getAttribute('src') || '';
+            if (src && src.startsWith('http')) videoUrls.push(src);
+            // Check <source> children
+            video.querySelectorAll('source').forEach(source => {
+              const ssrc = source.getAttribute('src') || '';
+              if (ssrc && ssrc.startsWith('http')) videoUrls.push(ssrc);
+            });
+            // Grab poster as thumbnail
+            const poster = video.getAttribute('poster') || '';
+            if (poster && poster.startsWith('http')) videoThumbnailUrl = poster;
+          });
+          // Also check for video URLs in data attributes (FB sometimes uses these)
+          card.querySelectorAll('[data-video-url], [data-src]').forEach(el => {
+            const vurl = el.getAttribute('data-video-url') || el.getAttribute('data-src') || '';
+            if (vurl && vurl.startsWith('http') && (vurl.includes('.mp4') || vurl.includes('video'))) {
+              videoUrls.push(vurl);
+            }
+          });
+
           // Images — only real ad creatives (not avatars/logos/icons)
           const imageUrls: string[] = [];
           card.querySelectorAll('img').forEach(img => {
@@ -268,6 +291,11 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
             if (parentStyle?.borderRadius === '50%') return;
             imageUrls.push(src);
           });
+
+          // If video ad has no separate images, use video thumbnail as the image
+          if (videoUrls.length > 0 && imageUrls.length === 0 && videoThumbnailUrl) {
+            imageUrls.push(videoThumbnailUrl);
+          }
 
           // Ad text
           let adText: string | null = null;
@@ -299,7 +327,7 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
           results.push({
             fbAdId, advertiserName, advertiserId, adText,
             linkTitle: null, linkDescription: null,
-            landingUrl, imageUrls, videoThumbnailUrl: null,
+            landingUrl, imageUrls, videoUrls, videoThumbnailUrl,
             startedAt, isActive, platforms, country: c,
           });
         } catch { continue; }
@@ -377,16 +405,30 @@ async function saveToDb(ads: any[]) {
         saved++;
       }
 
-      // Save image creatives
+      // Save creatives (images + videos)
+      const existingCreatives = await client.query('SELECT original_url FROM ad_creatives WHERE ad_id = $1', [adId]);
+      const existingUrls = new Set(existingCreatives.rows.map((r: any) => r.original_url));
+
       if (ad.imageUrls && ad.imageUrls.length > 0) {
-        const existingCreatives = await client.query('SELECT original_url FROM ad_creatives WHERE ad_id = $1', [adId]);
-        const existingUrls = new Set(existingCreatives.rows.map((r: any) => r.original_url));
         for (const url of ad.imageUrls) {
           if (!existingUrls.has(url)) {
             await client.query(
               `INSERT INTO ad_creatives (id, ad_id, type, original_url, created_at) VALUES (gen_random_uuid(), $1, 'IMAGE', $2, NOW())`,
               [adId, url]
             );
+            existingUrls.add(url);
+          }
+        }
+      }
+
+      if (ad.videoUrls && ad.videoUrls.length > 0) {
+        for (const url of ad.videoUrls) {
+          if (!existingUrls.has(url)) {
+            await client.query(
+              `INSERT INTO ad_creatives (id, ad_id, type, original_url, created_at) VALUES (gen_random_uuid(), $1, 'VIDEO', $2, NOW())`,
+              [adId, url]
+            );
+            existingUrls.add(url);
           }
         }
       }
@@ -431,8 +473,8 @@ async function main() {
     console.log(`[${i + 1}/${combos.length}]`);
     try {
       let ads = await scrapeKeyword(keyword, country);
-      // Only keep ads that have at least one creative image
-      ads = ads.filter((ad: any) => ad.imageUrls && ad.imageUrls.length > 0);
+      // Only keep ads that have at least one creative (image or video)
+      ads = ads.filter((ad: any) => (ad.imageUrls && ad.imageUrls.length > 0) || (ad.videoUrls && ad.videoUrls.length > 0));
       if (ads.length > 0) {
         const { saved, updated } = await saveToDb(ads);
         totalSaved += saved;

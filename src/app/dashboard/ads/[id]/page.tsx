@@ -108,13 +108,28 @@ export default function AdDetailPage() {
               {ad.creatives && ad.creatives.filter(c => c.originalUrl).length > 0 ? (
                 <div className="space-y-2">
                   {ad.creatives.filter(c => c.originalUrl).map((c) => (
-                    <img
-                      key={c.id}
-                      src={c.b2Key || proxyUrl(c.originalUrl!)}
-                      alt="Ad creative"
-                      className="w-full object-contain max-h-[600px] bg-gray-50"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
+                    c.type === 'VIDEO' ? (
+                      <div key={c.id} className="relative bg-black rounded-lg overflow-hidden">
+                        <video
+                          src={proxyUrl(c.originalUrl!)}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="w-full max-h-[600px] object-contain"
+                          onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                        >
+                          Your browser does not support video playback.
+                        </video>
+                      </div>
+                    ) : (
+                      <img
+                        key={c.id}
+                        src={c.b2Key || proxyUrl(c.originalUrl!)}
+                        alt="Ad creative"
+                        className="w-full object-contain max-h-[600px] bg-gray-50"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    )
                   ))}
                 </div>
               ) : (
@@ -164,11 +179,13 @@ export default function AdDetailPage() {
               <button
                 onClick={() => {
                   if (ad.creatives && ad.creatives.length > 0) {
-                    const url = ad.creatives[0].b2Key || ad.creatives[0].originalUrl;
+                    const creative = ad.creatives[0];
+                    const url = creative.b2Key || creative.originalUrl;
                     if (url) {
+                      const ext = creative.type === 'VIDEO' ? 'mp4' : 'jpg';
                       const a = document.createElement("a");
                       a.href = proxyUrl(url) + "&download=1";
-                      a.download = `creative-${ad.fbAdId}.jpg`;
+                      a.download = `creative-${ad.fbAdId}.${ext}`;
                       a.click();
                     }
                   }

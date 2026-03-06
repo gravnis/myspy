@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit,
         include: {
-          creatives: { take: 1 },
+          creatives: { take: 3 },
           vertical: true,
         },
       }),

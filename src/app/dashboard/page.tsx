@@ -303,19 +303,37 @@ export default function DashboardPage() {
                 <div className="bg-card-bg border border-card-border rounded-lg overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-200">
                   {/* Thumbnail */}
                   {ad.creatives?.[0]?.originalUrl ? (
-                    <div className="aspect-video bg-gray-100 overflow-hidden">
-                      <img
-                        src={proxyUrl(ad.creatives[0].originalUrl)}
-                        alt="Ad creative"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                        onError={(e) => {
-                          const img = e.target as HTMLImageElement;
-                          img.style.display = 'none';
-                          if (img.parentElement) {
-                            img.parentElement.innerHTML = '<span class="text-muted text-sm flex items-center justify-center h-full">Image expired</span>';
-                          }
-                        }}
-                      />
+                    <div className="aspect-video bg-gray-100 overflow-hidden relative">
+                      {(() => {
+                        const imageCreative = ad.creatives.find(c => c.type === 'IMAGE' && c.originalUrl);
+                        const videoCreative = ad.creatives.find(c => c.type === 'VIDEO');
+                        const thumbUrl = imageCreative?.originalUrl || ad.creatives[0].originalUrl;
+                        return (
+                          <>
+                            <img
+                              src={proxyUrl(thumbUrl!)}
+                              alt="Ad creative"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              onError={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                img.style.display = 'none';
+                                if (img.parentElement) {
+                                  img.parentElement.innerHTML = '<span class="text-muted text-sm flex items-center justify-center h-full">Image expired</span>';
+                                }
+                              }}
+                            />
+                            {videoCreative && (
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-12 h-12 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm">
+                                  <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="aspect-video bg-gray-100 flex items-center justify-center">
