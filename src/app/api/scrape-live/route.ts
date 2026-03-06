@@ -45,8 +45,12 @@ export async function GET(request: NextRequest) {
       else req.continue();
     });
 
+    // Fix tsx/esbuild __name injection for page.evaluate
+    await page.evaluateOnNewDocument('window.__name = (fn) => fn');
+
     const url = buildFbUrl(q, country);
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await new Promise(r => setTimeout(r, 4000));
 
     // Dismiss cookies
     try {
