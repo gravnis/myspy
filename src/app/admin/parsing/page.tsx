@@ -192,7 +192,7 @@ export default function AdminParsingPage() {
 
   if (loading) {
     return (
-      <DashboardLayout title="Parsing Management">
+      <DashboardLayout title="Parsing Management" requireAdmin>
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
@@ -201,7 +201,7 @@ export default function AdminParsingPage() {
   }
 
   return (
-    <DashboardLayout title="Parsing Management">
+    <DashboardLayout title="Parsing Management" requireAdmin>
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {statItems.map((item) => (

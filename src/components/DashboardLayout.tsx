@@ -11,7 +11,7 @@ interface User {
   plan: string;
 }
 
-export default function DashboardLayout({ children, title }: { children: React.ReactNode; title?: string }) {
+export default function DashboardLayout({ children, title, requireAdmin }: { children: React.ReactNode; title?: string; requireAdmin?: boolean }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -29,13 +29,18 @@ export default function DashboardLayout({ children, title }: { children: React.R
         if (!r.ok) throw new Error();
         return r.json();
       })
-      .then((data) => setUser(data.user))
+      .then((data) => {
+        setUser(data.user);
+        if (requireAdmin && data.user.role !== "ADMIN") {
+          router.push("/dashboard");
+        }
+      })
       .catch(() => {
         localStorage.removeItem("token");
         router.push("/login");
       })
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, requireAdmin]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");

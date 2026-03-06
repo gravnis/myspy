@@ -81,7 +81,7 @@ export default function AdminSettingsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout title="System Settings">
+      <DashboardLayout title="System Settings" requireAdmin>
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
@@ -90,7 +90,7 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <DashboardLayout title="System Settings">
+    <DashboardLayout title="System Settings" requireAdmin>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* API Keys */}
         <Card>
