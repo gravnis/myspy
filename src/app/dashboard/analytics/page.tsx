@@ -106,7 +106,30 @@ export default function AnalyticsPage() {
   );
 }
 
+interface GeoDetail {
+  country: string;
+  total: number;
+  verticals: { name: string; slug: string; count: number; activeCount: number; avgDays: number }[];
+}
+
 function AnalyticsContent({ data }: { data: AnalyticsData }) {
+  const [expandedGeo, setExpandedGeo] = useState<string | null>(null);
+  const [geoDetail, setGeoDetail] = useState<GeoDetail | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  const loadGeoDetail = async (country: string) => {
+    if (expandedGeo === country) {
+      setExpandedGeo(null);
+      return;
+    }
+    setExpandedGeo(country);
+    setGeoLoading(true);
+    try {
+      const res = await fetch(`/api/analytics/geo?country=${country}`);
+      if (res.ok) setGeoDetail(await res.json());
+    } catch {} finally { setGeoLoading(false); }
+  };
+
   const maxDaily = Math.max(...data.dailyActivity.map((d) => d.count), 1);
   const activePct = data.totalAds > 0 ? Math.round((data.activeAds / data.totalAds) * 100) : 0;
 
@@ -204,25 +227,60 @@ function AnalyticsContent({ data }: { data: AnalyticsData }) {
             )}
           </Card>
 
-          {/* Top GEOs */}
+          {/* Top GEOs with drill-down */}
           <Card>
             <h2 className="text-sm font-semibold text-foreground mb-1">Top GEO</h2>
-            <p className="text-[10px] text-muted mb-3">Где больше всего рекламы крутят</p>
+            <p className="text-[10px] text-muted mb-3">Кликни на страну чтобы увидеть вертикали</p>
             {data.topCountries.length === 0 ? (
               <p className="text-muted text-sm py-4 text-center">Нет данных</p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {data.topCountries.slice(0, 12).map((c, i) => {
                   const maxC = data.topCountries[0].count;
                   const pct = (c.count / maxC) * 100;
+                  const isExpanded = expandedGeo === c.country;
                   return (
-                    <div key={c.country} className="flex items-center gap-2">
-                      <span className="text-xs text-muted w-4 text-right">{i + 1}</span>
-                      <span className="text-sm text-foreground w-8">{c.country}</span>
-                      <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                        <div className="bg-blue-400 h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%` }} />
-                      </div>
-                      <span className="text-xs text-muted w-12 text-right">{c.count.toLocaleString()}</span>
+                    <div key={c.country}>
+                      <button
+                        onClick={() => loadGeoDetail(c.country)}
+                        className="flex items-center gap-2 w-full py-1 hover:bg-gray-50 rounded px-1 transition-colors"
+                      >
+                        <span className="text-xs text-muted w-4 text-right">{i + 1}</span>
+                        <span className="text-sm font-medium text-foreground w-8">{c.country}</span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                          <div className="bg-blue-400 h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%` }} />
+                        </div>
+                        <span className="text-xs text-muted w-12 text-right">{c.count.toLocaleString()}</span>
+                        <svg className={`w-3 h-3 text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isExpanded && (
+                        <div className="ml-6 pl-4 border-l-2 border-blue-200 py-2 space-y-1.5">
+                          {geoLoading ? (
+                            <div className="flex items-center gap-2 py-2">
+                              <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600" />
+                              <span className="text-xs text-muted">Loading...</span>
+                            </div>
+                          ) : geoDetail && geoDetail.verticals.length > 0 ? (
+                            geoDetail.verticals.map((v) => {
+                              const vPct = geoDetail.total > 0 ? (v.count / geoDetail.total) * 100 : 0;
+                              return (
+                                <div key={v.slug} className="flex items-center gap-2">
+                                  <span className="text-xs text-foreground w-20 truncate">{v.name}</span>
+                                  <div className="flex-1 bg-gray-100 rounded-full h-1">
+                                    <div className="bg-purple-400 h-full rounded-full" style={{ width: `${Math.max(vPct, 1)}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-muted w-8 text-right">{v.count}</span>
+                                  <span className="text-[10px] text-green-600 w-10 text-right">{v.activeCount} act</span>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-xs text-muted py-1">Нет данных по вертикалям</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

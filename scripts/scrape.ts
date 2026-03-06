@@ -399,14 +399,17 @@ async function saveToDb(ads: any[]) {
       const vertSlug = detectVertical(text || '');
       const verticalId = vertSlug !== 'other' ? verticalMap.get(vertSlug) || null : null;
 
-      const existing = await client.query('SELECT id FROM ads WHERE fb_ad_id = $1', [ad.fbAdId]);
+      const existing = await client.query('SELECT id, created_at, started_at FROM ads WHERE fb_ad_id = $1', [ad.fbAdId]);
 
       let adId: string;
       if (existing.rows.length > 0) {
         adId = existing.rows[0].id;
+        // Calculate days_active: prefer started_at (from FB), fallback to created_at (when we first saw it)
+        const refDate = ad.startedAt ? new Date(ad.startedAt) : (existing.rows[0].started_at || existing.rows[0].created_at);
+        const calcDays = Math.max(1, Math.floor((Date.now() - new Date(refDate).getTime()) / 86400000));
         await client.query(
-          'UPDATE ads SET last_seen_at = NOW(), is_active = $1, days_active = $2, vertical_id = COALESCE(vertical_id, $3) WHERE fb_ad_id = $4',
-          [ad.isActive, daysActive, verticalId, ad.fbAdId]
+          'UPDATE ads SET last_seen_at = NOW(), is_active = $1, days_active = $2, vertical_id = COALESCE(vertical_id, $3), started_at = COALESCE(started_at, $5) WHERE fb_ad_id = $4',
+          [ad.isActive, calcDays, verticalId, ad.fbAdId, ad.startedAt ? new Date(ad.startedAt) : null]
         );
         updated++;
       } else {
