@@ -105,14 +105,15 @@ export default function AdDetailPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Creative */}
             <div className="bg-card-bg border border-card-border rounded-xl overflow-hidden">
-              {ad.creatives && ad.creatives.length > 0 ? (
+              {ad.creatives && ad.creatives.filter(c => c.originalUrl).length > 0 ? (
                 <div className="space-y-2">
-                  {ad.creatives.map((c) => (
+                  {ad.creatives.filter(c => c.originalUrl).map((c) => (
                     <img
                       key={c.id}
-                      src={c.b2Key || (c.originalUrl ? proxyUrl(c.originalUrl) : "")}
+                      src={c.b2Key || proxyUrl(c.originalUrl!)}
                       alt="Ad creative"
                       className="w-full object-contain max-h-[600px] bg-gray-50"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   ))}
                 </div>

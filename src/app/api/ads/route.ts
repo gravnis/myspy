@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '24', 10)));
     const skip = (page - 1) * limit;
 
-    const where: Prisma.AdWhereInput = {};
+    const where: Prisma.AdWhereInput = {
+      // Only show ads that have at least one creative with a URL
+      creatives: { some: { originalUrl: { not: null } } },
+    };
 
     if (q) {
       where.OR = [

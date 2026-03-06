@@ -308,6 +308,13 @@ export default function DashboardPage() {
                         src={proxyUrl(ad.creatives[0].originalUrl)}
                         alt="Ad creative"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          img.style.display = 'none';
+                          if (img.parentElement) {
+                            img.parentElement.innerHTML = '<span class="text-muted text-sm flex items-center justify-center h-full">Image expired</span>';
+                          }
+                        }}
                       />
                     </div>
                   ) : (

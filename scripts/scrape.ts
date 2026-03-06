@@ -247,6 +247,10 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
           card.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src') || '';
             if (!src || src.startsWith('data:')) return;
+            // Skip Instagram CDN URLs (always page avatars, not creatives)
+            if (src.includes('cdninstagram.com')) return;
+            // Skip profile_pic URLs from FB CDN
+            if (src.includes('profile_pic') || src.includes('t51.2885-19') || src.includes('t51.82787-19')) return;
             // Skip tiny FB CDN thumbnails (avatars: s60x60, s100x100, p50x50, p75x75)
             // But keep real creatives (s600x600, s1080x1080 etc)
             const sizeMatch = src.match(/[_&?](s|p)(\d+)x(\d+)/);
@@ -426,7 +430,9 @@ async function main() {
     const { keyword, country } = combos[i];
     console.log(`[${i + 1}/${combos.length}]`);
     try {
-      const ads = await scrapeKeyword(keyword, country);
+      let ads = await scrapeKeyword(keyword, country);
+      // Only keep ads that have at least one creative image
+      ads = ads.filter((ad: any) => ad.imageUrls && ad.imageUrls.length > 0);
       if (ads.length > 0) {
         const { saved, updated } = await saveToDb(ads);
         totalSaved += saved;
