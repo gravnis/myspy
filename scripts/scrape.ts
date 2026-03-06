@@ -247,8 +247,13 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
           card.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src') || '';
             if (!src || src.startsWith('data:')) return;
-            // Skip small FB CDN thumbnails by URL pattern (avatars are s60x60, s100x100, p75x75 etc)
-            if (/[_&?]s\d{1,3}x\d{1,3}[_&]|p\d{2,3}x\d{2,3}/.test(src)) return;
+            // Skip tiny FB CDN thumbnails (avatars: s60x60, s100x100, p50x50, p75x75)
+            // But keep real creatives (s600x600, s1080x1080 etc)
+            const sizeMatch = src.match(/[_&?](s|p)(\d+)x(\d+)/);
+            if (sizeMatch) {
+              const dim = Math.max(parseInt(sizeMatch[2]), parseInt(sizeMatch[3]));
+              if (dim < 200) return; // Skip anything under 200px in URL
+            }
             // Skip small rendered images
             const w = img.width || img.naturalWidth || 0;
             const h = img.height || img.naturalHeight || 0;
@@ -257,9 +262,6 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
             const parent = img.parentElement;
             const parentStyle = parent ? getComputedStyle(parent) : null;
             if (parentStyle?.borderRadius === '50%') return;
-            // Skip very small natural dimensions (even if CSS stretches them)
-            if (img.naturalWidth > 0 && img.naturalWidth < 150) return;
-            if (img.naturalHeight > 0 && img.naturalHeight < 150) return;
             imageUrls.push(src);
           });
 
