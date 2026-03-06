@@ -107,21 +107,32 @@ export default function AdDetailPage() {
             <div className="bg-card-bg border border-card-border rounded-xl overflow-hidden">
               {ad.creatives && ad.creatives.filter(c => c.originalUrl).length > 0 ? (
                 <div className="space-y-2">
-                  {ad.creatives.filter(c => c.originalUrl).map((c) => (
-                    c.type === 'VIDEO' ? (
-                      <div key={c.id} className="relative bg-black rounded-lg overflow-hidden">
-                        <video
-                          src={proxyUrl(c.originalUrl!)}
-                          controls
-                          playsInline
-                          preload="metadata"
-                          className="w-full max-h-[600px] object-contain"
-                          onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
-                        >
-                          Your browser does not support video playback.
-                        </video>
-                      </div>
-                    ) : (
+                  {(() => {
+                    const creatives = ad.creatives.filter(c => c.originalUrl);
+                    const videoCreative = creatives.find(c => c.type === 'VIDEO');
+                    const imageCreatives = creatives.filter(c => c.type !== 'VIDEO');
+
+                    if (videoCreative) {
+                      // Video ad: show video player with first image as poster
+                      const posterUrl = imageCreatives[0]?.originalUrl;
+                      return (
+                        <div className="relative bg-black rounded-lg overflow-hidden">
+                          <video
+                            key={videoCreative.id}
+                            src={proxyUrl(videoCreative.originalUrl!)}
+                            poster={posterUrl ? proxyUrl(posterUrl) : undefined}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="w-full max-h-[600px] object-contain"
+                            onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                          />
+                        </div>
+                      );
+                    }
+
+                    // Image-only ad: show all images
+                    return imageCreatives.map((c) => (
                       <img
                         key={c.id}
                         src={c.b2Key || proxyUrl(c.originalUrl!)}
@@ -129,8 +140,8 @@ export default function AdDetailPage() {
                         className="w-full object-contain max-h-[600px] bg-gray-50"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
-                    )
-                  ))}
+                    ));
+                  })()}
                 </div>
               ) : (
                 <div className="aspect-video bg-gray-100 flex items-center justify-center">
