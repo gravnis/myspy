@@ -4,7 +4,7 @@
  * Usage: npx tsx scripts/scrape-browserless.ts [maxCombos]
  *
  * Each combo uses ~1 Browserless unit (30 sec).
- * Free tier: 1000 units/month. Budget: ~30 combos/day.
+ * Free tier: 1000 units/month. Concurrency limit: 2.
  */
 import 'dotenv/config';
 import puppeteer from 'puppeteer-core';
@@ -12,9 +12,62 @@ import { buildFbUrl, extractAdsFromPage, detectVertical } from '../src/lib/scrap
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const BROWSERLESS_TOKEN = process.env.BROWSERLESS_TOKEN!;
-const MAX_COMBOS = parseInt(process.argv[2] || process.env.MAX_COMBOS || '10', 10);
+const MAX_COMBOS = parseInt(process.argv[2] || process.env.MAX_COMBOS || '30', 10);
 
-const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'IT', 'NL', 'UA', 'PL', 'BR', 'IN', 'AU', 'CA'];
+// Massive keyword list for maximum coverage
+const KEYWORDS = [
+  // Gambling
+  'casino', 'online casino', 'slots', 'slot machine', 'poker', 'roulette', 'blackjack',
+  'jackpot', 'gambling', 'casino bonus', 'free spins', 'live casino', 'baccarat',
+  // Betting
+  'betting', 'sports betting', 'bet', 'sportsbook', 'football bet', 'live betting',
+  'odds', 'bet365', '1xbet', 'bookmaker', 'accumulator bet', 'horse racing bet',
+  // Nutra / Health
+  'weight loss', 'diet pills', 'fat burner', 'keto', 'detox', 'anti aging',
+  'supplement', 'skin care', 'hair growth', 'joint pain', 'blood sugar', 'cbd oil',
+  'testosterone booster', 'muscle supplement', 'collagen', 'probiotics', 'eye health',
+  'hearing aid', 'brain supplement', 'energy boost', 'metabolism booster',
+  // Crypto / Finance
+  'crypto trading', 'bitcoin', 'forex', 'trading platform', 'investment',
+  'passive income', 'earn money online', 'financial freedom', 'ethereum', 'nft',
+  'binary options', 'stock trading', 'crypto wallet', 'defi', 'mining bitcoin',
+  // Finance / Loans
+  'loan', 'personal loan', 'credit card', 'fast cash', 'payday loan', 'insurance',
+  'mortgage', 'debt relief', 'credit score', 'refinance', 'business loan',
+  // Dating
+  'dating app', 'dating site', 'meet singles', 'find love', 'hookup', 'relationship',
+  'mature dating', 'senior dating', 'christian dating', 'asian dating', 'local singles',
+  // Ecommerce
+  'dropshipping', 'online shop', 'free shipping', 'sale', 'discount', 'buy now',
+  'limited offer', 'flash sale', 'shopify store', 'amazon deals', 'aliexpress',
+  'gadget', 'smart watch', 'wireless earbuds', 'phone case', 'led lights',
+  // Sweepstakes
+  'free iphone', 'win prize', 'giveaway', 'sweepstakes', 'spin wheel', 'lucky winner',
+  'gift card', 'free samsung', 'contest', 'reward',
+  // Gaming / Apps
+  'mobile game', 'play now', 'free game', 'strategy game', 'RPG game', 'online game',
+  'puzzle game', 'action game', 'simulation game', 'idle game',
+  // VPN / Software
+  'vpn', 'antivirus', 'password manager', 'cloud storage', 'photo editor',
+  'video editor', 'ai tool', 'chatbot', 'productivity app',
+  // Education / Courses
+  'online course', 'learn english', 'coding bootcamp', 'certification', 'masterclass',
+  'make money', 'side hustle', 'freelancing', 'work from home', 'affiliate marketing',
+  // Real Estate
+  'real estate', 'property investment', 'house for sale', 'apartment rent',
+  // Insurance
+  'car insurance', 'life insurance', 'health insurance', 'travel insurance',
+  // Russian keywords
+  'казино', 'ставки', 'букмекер', 'похудение', 'крипто', 'биткоин', 'трейдинг',
+  'знакомства', 'кредит', 'займ', 'заработок', 'игра', 'скидки', 'распродажа',
+  'форекс', 'инвестиции', 'vpn скачать', 'курсы', 'обучение',
+];
+
+const COUNTRIES = [
+  'US', 'GB', 'DE', 'FR', 'ES', 'IT', 'NL', 'UA', 'PL', 'BR', 'IN', 'AU', 'CA',
+  'AT', 'CH', 'BE', 'CZ', 'RO', 'MX', 'PH', 'TH', 'ZA', 'NG', 'AR', 'CO',
+  'SE', 'NO', 'DK', 'FI', 'PT', 'IE', 'NZ',
+];
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -25,57 +78,75 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+async function connectWithRetry(token: string, maxRetries = 3): Promise<any> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const browser = await puppeteer.connect({
+        browserWSEndpoint: `wss://chrome.browserless.io?token=${token}`,
+      });
+      return browser;
+    } catch (err: any) {
+      if (err.message?.includes('429') && attempt < maxRetries) {
+        const delay = attempt * 15000; // 15s, 30s, 45s
+        console.log(`  429 rate limit, retry ${attempt}/${maxRetries} in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 async function main() {
   console.log('MySpy Browserless Scraper');
   console.log('========================');
+  console.log(`Started: ${new Date().toLocaleString()}`);
 
   const { default: pg } = await import('pg');
   const client = new pg.Client({ connectionString: DATABASE_URL });
   await client.connect();
 
-  // Get keywords from DB (user searches + predefined)
+  // Get keywords from DB (user searches) + merge with hardcoded
   const kwRes = await client.query('SELECT keyword FROM search_keywords WHERE is_active = true');
-  let keywords = kwRes.rows.map((r: any) => r.keyword);
-
-  // Fallback hardcoded keywords if DB is empty
-  if (keywords.length === 0) {
-    keywords = ['casino', 'betting', 'weight loss', 'crypto trading', 'dating app', 'dropshipping', 'loan', 'free iphone', 'mobile game', 'keto'];
-  }
+  const dbKeywords = kwRes.rows.map((r: any) => r.keyword);
+  const allKeywords = Array.from(new Set([...KEYWORDS, ...dbKeywords]));
 
   // Build combos
   let combos: { keyword: string; country: string }[] = [];
-  for (const keyword of keywords) {
+  for (const keyword of allKeywords) {
     for (const country of COUNTRIES) {
       combos.push({ keyword, country });
     }
   }
   combos = shuffle(combos).slice(0, MAX_COMBOS);
 
-  console.log(`Keywords: ${keywords.length}, Countries: ${COUNTRIES.length}`);
+  console.log(`Keywords: ${allKeywords.length}, Countries: ${COUNTRIES.length}`);
+  console.log(`Total possible combos: ${allKeywords.length * COUNTRIES.length}`);
   console.log(`Combos this run: ${combos.length} (max ${MAX_COMBOS})`);
-  console.log(`Est. Browserless units: ~${combos.length}`);
   console.log('');
 
   // Load verticals
   const vres = await client.query('SELECT id, slug FROM verticals');
   const verticalMap = new Map(vres.rows.map((v: any) => [v.slug, v.id]));
 
-  let totalSaved = 0, totalUpdated = 0;
+  let totalSaved = 0, totalUpdated = 0, errors = 0;
+  const startTime = Date.now();
 
   for (let i = 0; i < combos.length; i++) {
     const { keyword, country } = combos[i];
-    console.log(`[${i + 1}/${combos.length}] "${keyword}" in ${country}...`);
+    const elapsed = (Date.now() - startTime) / 1000;
+    const avgPerCombo = i > 0 ? elapsed / i : 60;
+    const remaining = Math.round(avgPerCombo * (combos.length - i) / 60);
+    console.log(`[${i + 1}/${combos.length}] "${keyword}" in ${country} | +${totalSaved} new, ${totalUpdated} upd | ETA: ~${remaining}min`);
 
     try {
-      const browser = await puppeteer.connect({
-        browserWSEndpoint: `wss://chrome.browserless.io?token=${BROWSERLESS_TOKEN}`,
-      });
+      const browser = await connectWithRetry(BROWSERLESS_TOKEN);
 
       const page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36');
       await page.setViewport({ width: 1920, height: 1080 });
       await page.setRequestInterception(true);
-      page.on('request', req => {
+      page.on('request', (req: any) => {
         if (['font', 'stylesheet'].includes(req.resourceType())) req.abort();
         else req.continue();
       });
@@ -88,7 +159,7 @@ async function main() {
       try {
         const btns = await page.$$('button');
         for (const btn of btns) {
-          const text = await btn.evaluate(b => b.textContent || '');
+          const text = await btn.evaluate((b: any) => b.textContent || '');
           if (text.toLowerCase().includes('allow') || text.toLowerCase().includes('accept')) {
             await btn.click();
             await new Promise(r => setTimeout(r, 1500));
@@ -107,11 +178,13 @@ async function main() {
       if (!hasResults) {
         console.log('  No results');
         await browser.disconnect();
+        // Wait before next combo to avoid 429
+        await new Promise(r => setTimeout(r, 3000));
         continue;
       }
 
-      // Scroll
-      for (let s = 0; s < 3; s++) {
+      // Scroll aggressively to load more ads
+      for (let s = 0; s < 12; s++) {
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await new Promise(r => setTimeout(r, 2000));
       }
@@ -125,6 +198,7 @@ async function main() {
 
       if (ads.length === 0) {
         console.log('  No ads with creatives');
+        await new Promise(r => setTimeout(r, 3000));
         continue;
       }
 
@@ -180,15 +254,19 @@ async function main() {
       totalUpdated += updated;
       console.log(`  Found ${ads.length} → ${saved} new, ${updated} updated`);
 
-      // Small delay between combos
-      await new Promise(r => setTimeout(r, 1000));
+      // Delay between combos to respect concurrency limit (2 max)
+      await new Promise(r => setTimeout(r, 8000));
     } catch (err: any) {
+      errors++;
       console.error(`  Error: ${err.message}`);
+      // On error wait longer before retry
+      await new Promise(r => setTimeout(r, 10000));
     }
   }
 
   await client.end();
-  console.log(`\nDone! Total: ${totalSaved} new, ${totalUpdated} updated`);
+  const totalMin = Math.round((Date.now() - startTime) / 60000);
+  console.log(`\nDone in ${totalMin} min! Total: ${totalSaved} new, ${totalUpdated} updated, ${errors} errors`);
 }
 
 main().catch(console.error);

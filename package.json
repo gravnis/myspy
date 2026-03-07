@@ -20,9 +20,13 @@
     "next": "14.2.35",
     "pg": "^8.20.0",
     "prisma": "^7.4.2",
+    "puppeteer-core": "^24.38.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "^18",
     "react-dom": "^18",
     "sharp": "^0.34.5",
+    "socks-proxy-agent": "^8.0.5",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

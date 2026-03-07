@@ -305,9 +305,6 @@ export default function DashboardPage() {
             {!loading && total > 0 && (
               <>
                 {total.toLocaleString()} ads found
-                {source === "live" && (
-                  <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">LIVE</span>
-                )}
                 <button
                   onClick={() => {
                     const csvRows = [

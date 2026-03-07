@@ -182,6 +182,55 @@ model ParseLog {
   @@map("parse_logs")
 }
 
+enum ScraperType {
+  GRAPHQL
+  BROWSERLESS
+  LOCAL
+}
+
+enum ScraperJobStatus {
+  RUNNING
+  COMPLETED
+  ERROR
+  STOPPED
+}
+
+model ScraperConfig {
+  id          String      @id @default(uuid()) @db.Uuid
+  type        ScraperType
+  name        String
+  isEnabled   Boolean     @default(false) @map("is_enabled")
+  config      Json        @default("{}")
+  schedule    String?     // e.g. "every 3h", "manual"
+  lastRunAt   DateTime?   @map("last_run_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  jobs ScraperJob[]
+
+  @@map("scraper_configs")
+}
+
+model ScraperJob {
+  id           String           @id @default(uuid()) @db.Uuid
+  configId     String?          @map("config_id") @db.Uuid
+  type         ScraperType
+  status       ScraperJobStatus @default(RUNNING)
+  pid          Int?
+  config       Json             @default("{}")
+  progress     Json             @default("{}")
+  adsFound     Int              @default(0) @map("ads_found")
+  adsNew       Int              @default(0) @map("ads_new")
+  adsUpdated   Int              @default(0) @map("ads_updated")
+  unitsUsed    Int              @default(0) @map("units_used")
+  errorMessage String?          @map("error_message")
+  startedAt    DateTime         @default(now()) @map("started_at")
+  completedAt  DateTime?        @map("completed_at")
+
+  scraperConfig ScraperConfig? @relation(fields: [configId], references: [id])
+
+  @@map("scraper_jobs")
+}
+
 model AiGeneration {
   id                String           @id @default(uuid()) @db.Uuid
   userId            String           @map("user_id") @db.Uuid

@@ -155,10 +155,10 @@ async function scrapeKeyword(keyword: string, country: string): Promise<any[]> {
     // Wait a bit more for initial content
     await new Promise(r => setTimeout(r, 3000));
 
-    // Scroll to load more
-    for (let i = 0; i < 8; i++) {
+    // Scroll to load more (aggressive — 15 scrolls for maximum ads)
+    for (let i = 0; i < 15; i++) {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     // Expand "See more" buttons
@@ -459,13 +459,29 @@ async function saveToDb(ads: any[]) {
 }
 
 async function main() {
-  console.log('MySpy Local Scraper');
-  console.log('===================');
+  console.log('MySpy Local Scraper (Mass Mode)');
+  console.log('================================');
   console.log(`DB: ${DATABASE_URL.replace(/:[^@]+@/, ':***@')}`);
+  console.log(`Started: ${new Date().toLocaleString()}`);
+
+  // Load keywords from DB (user searches) + hardcoded
+  let dbKeywords: string[] = [];
+  try {
+    const { default: pg } = await import('pg');
+    const tmpClient = new pg.Client({ connectionString: DATABASE_URL });
+    await tmpClient.connect();
+    const kwRes = await tmpClient.query('SELECT keyword FROM search_keywords WHERE is_active = true');
+    dbKeywords = kwRes.rows.map((r: any) => r.keyword);
+    await tmpClient.end();
+    if (dbKeywords.length > 0) console.log(`Loaded ${dbKeywords.length} keywords from DB`);
+  } catch {}
+
+  // Merge: hardcoded + DB keywords (deduplicated)
+  const allKeywords = Array.from(new Set([...ALL_KEYWORDS, ...dbKeywords]));
 
   // Build all keyword-country combos
   let combos: { keyword: string; country: string }[] = [];
-  for (const keyword of ALL_KEYWORDS) {
+  for (const keyword of allKeywords) {
     for (const country of COUNTRIES) {
       combos.push({ keyword, country });
     }
@@ -479,15 +495,19 @@ async function main() {
     combos = combos.slice(0, MAX_COMBOS);
   }
 
-  console.log(`Total keywords: ${ALL_KEYWORDS.length}, Countries: ${COUNTRIES.length}`);
-  console.log(`Combos this run: ${combos.length} / ${ALL_KEYWORDS.length * COUNTRIES.length}`);
+  console.log(`Total keywords: ${allKeywords.length}, Countries: ${COUNTRIES.length}`);
+  console.log(`Combos this run: ${combos.length} / ${allKeywords.length * COUNTRIES.length}`);
   console.log('');
 
-  let totalSaved = 0, totalUpdated = 0;
+  let totalSaved = 0, totalUpdated = 0, errors = 0;
+  const startTime = Date.now();
 
   for (let i = 0; i < combos.length; i++) {
     const { keyword, country } = combos[i];
-    console.log(`[${i + 1}/${combos.length}]`);
+    const elapsed = (Date.now() - startTime) / 1000;
+    const avgPerCombo = i > 0 ? elapsed / i : 60;
+    const remaining = Math.round(avgPerCombo * (combos.length - i) / 60);
+    console.log(`[${i + 1}/${combos.length}] "${keyword}" ${country} | +${totalSaved} new, ${totalUpdated} upd, ${errors} err | ETA: ~${remaining}min`);
     try {
       let ads = await scrapeKeyword(keyword, country);
       // Only keep ads that have at least one creative (image or video)
@@ -496,17 +516,24 @@ async function main() {
         const { saved, updated } = await saveToDb(ads);
         totalSaved += saved;
         totalUpdated += updated;
-        console.log(`    Saved: ${saved} new, ${updated} updated`);
+        console.log(`    → ${ads.length} ads, ${saved} new, ${updated} updated`);
       }
-      // Delay between requests
-      await new Promise(r => setTimeout(r, 2000));
+      // Small delay between requests
+      await new Promise(r => setTimeout(r, 1000));
     } catch (err: any) {
-      console.error(`  Error scraping "${keyword}" in ${country}:`, err.message);
+      errors++;
+      console.error(`  Error: ${err.message}`);
+      // If too many consecutive errors, wait a bit
+      if (errors % 5 === 0) {
+        console.log('  Too many errors, waiting 30s...');
+        await new Promise(r => setTimeout(r, 30000));
+      }
     }
   }
 
+  const totalMin = Math.round((Date.now() - startTime) / 60000);
   console.log('');
-  console.log(`Done! Total: ${totalSaved} new ads, ${totalUpdated} updated`);
+  console.log(`Done in ${totalMin} min! Total: ${totalSaved} new ads, ${totalUpdated} updated, ${errors} errors`);
 }
 
 main().catch(console.error);
